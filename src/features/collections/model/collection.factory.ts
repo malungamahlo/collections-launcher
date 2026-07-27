@@ -3,6 +3,7 @@ import type {
   Timestamp,
   WebsiteResource,
 } from './collection.types'
+import { normalizeWebsiteUrl } from './website-url'
 
 /** User-provided values required to create a new collection. */
 export interface CreateCollectionInput {
@@ -93,7 +94,7 @@ export function createWebsiteResource(
     id: dependencies.generateId(),
     type: 'website',
     name: normalizeRequiredText(input.name, 'Website name'),
-    url: normalizeRequiredText(input.url, 'Website URL'),
+    url: normalizeWebsiteUrl(input.url),
     ...(iconUrl ? { iconUrl } : {}),
     createdAt: timestamp,
     updatedAt: timestamp,
