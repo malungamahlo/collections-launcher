@@ -8,6 +8,7 @@ export default defineConfig({
   manifest: {
     name: 'Collections Launcher',
     description: 'Organize websites into reusable collections.',
+    permissions: ['storage'],
   },
   webExt: {
     startUrls: ['chrome://newtab/'],
