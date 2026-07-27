@@ -9,4 +9,7 @@ export default defineConfig({
     name: 'Collections Launcher',
     description: 'Organize websites into reusable collections.',
   },
+  webExt: {
+    startUrls: ['chrome://newtab/'],
+  },
 })

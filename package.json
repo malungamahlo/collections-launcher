@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "start": "wxt",
     "dev": "wxt",
     "build": "tsc --noEmit && wxt build",
     "lint": "eslint .",
