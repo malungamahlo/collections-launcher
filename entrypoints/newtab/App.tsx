@@ -1,6 +1,10 @@
+import { CollectionGrid } from '@app/features/collections/components/collection-grid'
 import { DashboardHeader } from '@app/features/collections/components/dashboard-header'
+import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/sample-collections'
 
 function App() {
+  const collections = DEVELOPMENT_SAMPLE_STATE.collections
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
@@ -19,6 +23,8 @@ function App() {
               Open a saved resource or launch a complete workspace.
             </p>
           </div>
+
+          <CollectionGrid collections={collections} />
         </section>
       </div>
     </main>
