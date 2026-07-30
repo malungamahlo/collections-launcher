@@ -1,28 +1,26 @@
+import { DashboardHeader } from '@app/features/collections/components/dashboard-header'
+
 function App() {
   return (
-    <main className="newtab-shell">
-      <header className="newtab-header">
-        <div className="brand-mark" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-        <div>
-          <p className="eyebrow">Collections Launcher</p>
-          <h1>Your resources, grouped by purpose.</h1>
-          <p className="intro">
-            The extension foundation is ready. Your collections will live here.
-          </p>
-        </div>
-      </header>
+    <main className="min-h-screen bg-background">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+        <DashboardHeader />
 
-      <section className="foundation-card" aria-labelledby="foundation-title">
-        <p className="status">Phase A</p>
-        <h2 id="foundation-title">New-tab entry point connected</h2>
-        <p>
-          Collection management arrives in the next implementation phases.
-        </p>
-      </section>
+        <section aria-labelledby="collections-heading">
+          <div>
+            <h2
+              id="collections-heading"
+              className="text-xl font-semibold text-foreground"
+            >
+              Collections
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Open a saved resource or launch a complete workspace.
+            </p>
+          </div>
+        </section>
+      </div>
     </main>
   )
 }
