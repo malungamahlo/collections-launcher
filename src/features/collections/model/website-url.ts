@@ -55,3 +55,16 @@ export function normalizeWebsiteUrl(value: string): string {
 
   return parsedUrl.toString()
 }
+
+/**
+ * Extracts a short, readable domain from a valid website URL.
+ * A malformed value is returned unchanged so rendering never crashes.
+ */
+export function getReadableWebsiteDomain(value: string): string {
+  try {
+    const hostname = new URL(value).hostname
+    return hostname.replace(/^www\./, '') || value
+  } catch {
+    return value
+  }
+}

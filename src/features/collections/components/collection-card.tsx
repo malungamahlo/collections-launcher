@@ -5,11 +5,12 @@ import {
   CardContent,
   CardHeader,
 } from '@app/shared/components/ui/card'
-import type { Collection } from '../model/collection.types'
+import type { Collection, WebsiteResource } from '../model/collection.types'
 import { WebsiteResourceItem } from './website-resource-item'
 
 interface CollectionCardProps {
   readonly collection: Collection
+  readonly onOpenResource: (resource: WebsiteResource) => void
 }
 
 const COLLECTION_ICONS: Readonly<Record<string, LucideIcon>> = {
@@ -21,7 +22,10 @@ const COLLECTION_ICONS: Readonly<Record<string, LucideIcon>> = {
 /**
  * Displays one collection and its website resources.
  */
-export function CollectionCard({ collection }: CollectionCardProps) {
+export function CollectionCard({
+  collection,
+  onOpenResource,
+}: CollectionCardProps) {
   const titleId = useId()
   const CollectionIcon = COLLECTION_ICONS[collection.icon ?? ''] ?? Folder
   const resourceCount = collection.resources.length
@@ -74,7 +78,11 @@ export function CollectionCard({ collection }: CollectionCardProps) {
       <CardContent>
         <ul className="space-y-2">
           {collection.resources.map(resource => (
-            <WebsiteResourceItem key={resource.id} resource={resource} />
+            <WebsiteResourceItem
+              key={resource.id}
+              resource={resource}
+              onOpen={onOpenResource}
+            />
           ))}
         </ul>
       </CardContent>

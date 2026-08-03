@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getReadableWebsiteDomain,
   normalizeWebsiteUrl,
   WebsiteUrlError,
   type WebsiteUrlErrorCode,
@@ -27,5 +28,19 @@ describe('normalizeWebsiteUrl', () => {
       expect(error).toBeInstanceOf(WebsiteUrlError)
       expect((error as WebsiteUrlError).code).toBe(expectedCode)
     }
+  })
+})
+
+describe('getReadableWebsiteDomain', () => {
+  it.each([
+    ['https://www.github.com/', 'github.com'],
+    ['https://learn.microsoft.com/en-us/azure/', 'learn.microsoft.com'],
+    ['https://portal.azure.com/', 'portal.azure.com'],
+  ])('extracts a readable domain from "%s"', (input, expected) => {
+    expect(getReadableWebsiteDomain(input)).toBe(expected)
+  })
+
+  it('returns a malformed value unchanged', () => {
+    expect(getReadableWebsiteDomain('not a URL')).toBe('not a URL')
   })
 })

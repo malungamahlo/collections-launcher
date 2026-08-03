@@ -1,9 +1,22 @@
 import { CollectionGrid } from '@app/features/collections/components/collection-grid'
+import { CollectionsEmptyState } from '@app/features/collections/components/collections-empty-state'
 import { DashboardHeader } from '@app/features/collections/components/dashboard-header'
-import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/sample-collections'
+import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
+import type { WebsiteResource } from '@app/features/collections/model/collection.types'
+import { ChromeLocalCollectionsRepository } from '@app/features/collections/storage/chrome-local-collections.repository'
+import { BrowserTabsAdapter } from '@app/platform/browser/tabs.adapter'
+
+const collectionsRepository = new ChromeLocalCollectionsRepository()
+const tabsAdapter = new BrowserTabsAdapter()
 
 function App() {
-  const collections = DEVELOPMENT_SAMPLE_STATE.collections
+  const { collections, status } = useCollectionsState(collectionsRepository)
+
+  function handleOpenResource(resource: WebsiteResource): void {
+    void tabsAdapter.open(resource.url).catch(error => {
+      console.error(`Could not open ${resource.url}`, error)
+    })
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -24,7 +37,28 @@ function App() {
             </p>
           </div>
 
-          <CollectionGrid collections={collections} />
+          {status === 'loading' && (
+            <p className="mt-6 text-sm text-muted-foreground" role="status">
+              Loading collections…
+            </p>
+          )}
+
+          {status === 'error' && (
+            <p className="mt-6 text-sm text-red-700" role="alert">
+              Collections could not be loaded. Open a new tab to try again.
+            </p>
+          )}
+
+          {status === 'ready' && collections.length === 0 && (
+            <CollectionsEmptyState />
+          )}
+
+          {status === 'ready' && collections.length > 0 && (
+            <CollectionGrid
+              collections={collections}
+              onOpenResource={handleOpenResource}
+            />
+          )}
         </section>
       </div>
     </main>

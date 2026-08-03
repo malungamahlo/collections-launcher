@@ -8,6 +8,7 @@ describe('CollectionGrid', () => {
     const markup = renderToStaticMarkup(
       <CollectionGrid
         collections={DEVELOPMENT_SAMPLE_STATE.collections}
+        onOpenResource={() => undefined}
       />,
     )
 
