@@ -45,4 +45,21 @@ describe('CollectionForm', () => {
     expect(markup).toContain('The collection could not be saved.')
     expect(markup).toContain('disabled')
   })
+
+  it('connects a name validation error to the name input', () => {
+    const markup = renderToStaticMarkup(
+      <CollectionForm
+        values={EMPTY_COLLECTION_FORM_VALUES}
+        submitLabel="Create collection"
+        nameError="Enter a collection name."
+        onValuesChange={() => undefined}
+        onSubmit={() => undefined}
+        onCancel={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain('Enter a collection name.')
+    expect(markup).toContain('aria-invalid="true"')
+    expect(markup).toContain('aria-describedby=')
+  })
 })

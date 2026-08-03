@@ -57,6 +57,14 @@ describe('resolveStoredCollectionsState', () => {
     ).toBe('malformed')
   })
 
+  it('rejects a stored collection name beyond the supported length', () => {
+    const state = createTestState({
+      collections: [createTestCollection({ name: 'A'.repeat(81) })],
+    })
+
+    expect(resolveStoredCollectionsState(state).status).toBe('malformed')
+  })
+
   it('rejects a malformed resource URL', () => {
     const resource = createTestWebsiteResource({
       url: 'javascript:alert(1)',

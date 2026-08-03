@@ -4,6 +4,7 @@ import {
   type CollectionsState,
   type WebsiteResource,
 } from '../model/collection.types'
+import { getCollectionNameValidationError } from '../model/collection.validation'
 
 /** Outcomes produced when resolving a value read from browser storage. */
 export type StoredStateStatus =
@@ -99,7 +100,7 @@ function isCollection(value: unknown): value is Collection {
     typeof value.id === 'string' &&
     value.id.trim().length > 0 &&
     typeof value.name === 'string' &&
-    value.name.trim().length > 0 &&
+    getCollectionNameValidationError(value.name) === undefined &&
     isOptionalString(value.description) &&
     isOptionalString(value.icon) &&
     isOptionalString(value.color) &&

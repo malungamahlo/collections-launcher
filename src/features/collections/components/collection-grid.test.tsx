@@ -9,6 +9,8 @@ describe('CollectionGrid', () => {
       <CollectionGrid
         collections={DEVELOPMENT_SAMPLE_STATE.collections}
         onOpenResource={() => undefined}
+        onEditCollection={() => undefined}
+        onDeleteCollection={() => undefined}
       />,
     )
 
@@ -18,6 +20,9 @@ describe('CollectionGrid', () => {
       for (const resource of collection.resources) {
         expect(markup).toContain(resource.name)
       }
+
+      expect(markup).toContain(`Edit ${collection.name}`)
+      expect(markup).toContain(`Delete ${collection.name}`)
     }
   })
 })

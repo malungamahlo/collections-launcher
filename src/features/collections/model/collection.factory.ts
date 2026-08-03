@@ -3,6 +3,7 @@ import type {
   Timestamp,
   WebsiteResource,
 } from './collection.types'
+import { normalizeCollectionName } from './collection.validation'
 import { normalizeWebsiteUrl } from './website-url'
 
 /** User-provided values required to create a new collection. */
@@ -12,6 +13,9 @@ export interface CreateCollectionInput {
   readonly icon?: string
   readonly color?: string
 }
+
+/** User-provided values that can change on an existing collection. */
+export type UpdateCollectionMetadataInput = CreateCollectionInput
 
 /** User-provided values required to create a website resource. */
 export interface CreateWebsiteResourceInput {
@@ -70,12 +74,34 @@ export function createCollection(
 
   return {
     id: dependencies.generateId(),
-    name: normalizeRequiredText(input.name, 'Collection name'),
+    name: normalizeCollectionName(input.name),
     ...(description ? { description } : {}),
     ...(icon ? { icon } : {}),
     ...(color ? { color } : {}),
     resources: [],
     createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+/**
+ * Applies normalized metadata while preserving identity, resources, and creation time.
+ */
+export function updateCollectionMetadata(
+  collection: Collection,
+  input: UpdateCollectionMetadataInput,
+  timestamp: Timestamp = Date.now(),
+): Collection {
+  const description = normalizeOptionalText(input.description)
+  const icon = normalizeOptionalText(input.icon)
+  const color = normalizeOptionalText(input.color)
+
+  return {
+    ...collection,
+    name: normalizeCollectionName(input.name),
+    ...(description ? { description } : { description: undefined }),
+    ...(icon ? { icon } : { icon: undefined }),
+    ...(color ? { color } : { color: undefined }),
     updatedAt: timestamp,
   }
 }

@@ -3,7 +3,9 @@ import {
   createCollection,
   createWebsiteResource,
   type FactoryDependencies,
+  updateCollectionMetadata,
 } from './collection.factory'
+import { createTestCollection } from '../test/collection.fixtures'
 
 const fixedDependencies: FactoryDependencies = {
   generateId: () => 'generated-id',
@@ -49,7 +51,63 @@ describe('createCollection', () => {
   it('rejects a whitespace-only collection name', () => {
     expect(() =>
       createCollection({ name: '   ' }, fixedDependencies),
-    ).toThrow('Collection name cannot be empty')
+    ).toThrow('Enter a collection name.')
+  })
+
+  it('rejects a collection name longer than 80 characters', () => {
+    expect(() =>
+      createCollection({ name: 'A'.repeat(81) }, fixedDependencies),
+    ).toThrow('Collection names must be 80 characters or fewer.')
+  })
+})
+
+describe('updateCollectionMetadata', () => {
+  it('updates normalized metadata and preserves collection contents', () => {
+    const original = createTestCollection()
+
+    const updated = updateCollectionMetadata(
+      original,
+      {
+        name: '  Updated collection  ',
+        description: '  Updated description  ',
+        icon: '  cloud  ',
+        color: '  #2563eb  ',
+      },
+      2_000,
+    )
+
+    expect(updated).toEqual({
+      ...original,
+      name: 'Updated collection',
+      description: 'Updated description',
+      icon: 'cloud',
+      color: '#2563eb',
+      updatedAt: 2_000,
+    })
+    expect(updated.resources).toBe(original.resources)
+  })
+
+  it('removes optional metadata when its edited value is empty', () => {
+    const original = createTestCollection({
+      description: 'Description',
+      icon: 'code',
+      color: '#f97316',
+    })
+
+    const updated = updateCollectionMetadata(
+      original,
+      {
+        name: original.name,
+        description: ' ',
+        icon: ' ',
+        color: ' ',
+      },
+      2_000,
+    )
+
+    expect(updated.description).toBeUndefined()
+    expect(updated.icon).toBeUndefined()
+    expect(updated.color).toBeUndefined()
   })
 })
 

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import type { Collection } from '../model/collection.types'
+import { useCallback, useEffect, useState } from 'react'
+import type { CollectionsState } from '../model/collection.types'
 import type { CollectionsRepository } from '../storage/collections.repository'
+import { createEmptyCollectionsState } from '../storage/stored-collections-state'
 
 /** The possible states of the initial collections load. */
 export type CollectionsLoadStatus = 'loading' | 'ready' | 'error'
@@ -11,10 +12,13 @@ export type CollectionsLoadStatus = 'loading' | 'ready' | 'error'
 export function useCollectionsState(
   repository: CollectionsRepository,
 ): {
-  readonly collections: readonly Collection[]
+  readonly state: CollectionsState
   readonly status: CollectionsLoadStatus
+  readonly save: (state: CollectionsState) => Promise<void>
 } {
-  const [collections, setCollections] = useState<readonly Collection[]>([])
+  const [state, setState] = useState<CollectionsState>(
+    createEmptyCollectionsState,
+  )
   const [status, setStatus] = useState<CollectionsLoadStatus>('loading')
 
   useEffect(() => {
@@ -27,7 +31,7 @@ export function useCollectionsState(
       }
 
       receivedStorageUpdate = true
-      setCollections(state.collections)
+      setState(state)
       setStatus('ready')
     })
 
@@ -35,7 +39,7 @@ export function useCollectionsState(
       .load()
       .then(state => {
         if (active && !receivedStorageUpdate) {
-          setCollections(state.collections)
+          setState(state)
           setStatus('ready')
         }
       })
@@ -51,5 +55,15 @@ export function useCollectionsState(
     }
   }, [repository])
 
-  return { collections, status }
+  /** Persists a valid state and updates this page without waiting for an event. */
+  const save = useCallback(
+    async (nextState: CollectionsState): Promise<void> => {
+      await repository.save(nextState)
+      setState(nextState)
+      setStatus('ready')
+    },
+    [repository],
+  )
+
+  return { state, status, save }
 }

@@ -9,6 +9,7 @@ interface CollectionFormProps {
   readonly values: CollectionFormValues
   readonly submitLabel: string
   readonly isSubmitting?: boolean
+  readonly nameError?: string
   readonly submissionError?: string
   readonly onValuesChange: (values: CollectionFormValues) => void
   readonly onSubmit: () => void
@@ -22,6 +23,7 @@ export function CollectionForm({
   values,
   submitLabel,
   isSubmitting = false,
+  nameError,
   submissionError,
   onValuesChange,
   onSubmit,
@@ -29,6 +31,7 @@ export function CollectionForm({
 }: CollectionFormProps) {
   const formId = useId()
   const nameId = `${formId}-name`
+  const nameErrorId = `${formId}-name-error`
   const descriptionId = `${formId}-description`
   const iconId = `${formId}-icon`
   const colorId = `${formId}-color`
@@ -55,11 +58,18 @@ export function CollectionForm({
           placeholder="For example, Development"
           autoComplete="off"
           required
+          aria-invalid={nameError ? 'true' : undefined}
+          aria-describedby={nameError ? nameErrorId : undefined}
           disabled={isSubmitting}
           onChange={event =>
             onValuesChange({ ...values, name: event.target.value })
           }
         />
+        {nameError && (
+          <p id={nameErrorId} className="text-sm text-red-700">
+            {nameError}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">

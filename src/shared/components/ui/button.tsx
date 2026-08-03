@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react'
 import { cn } from '@app/shared/lib/utils'
 
-type ButtonVariant = 'primary' | 'secondary'
+type ButtonVariant = 'primary' | 'secondary' | 'destructive'
 
 interface ButtonProps extends ComponentProps<'button'> {
   readonly variant?: ButtonVariant
@@ -23,9 +23,12 @@ export function Button({
         'inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-medium transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        variant === 'primary'
-          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-          : 'border border-border bg-card text-card-foreground hover:bg-muted',
+        variant === 'primary' &&
+          'bg-primary text-primary-foreground hover:bg-primary/90',
+        variant === 'secondary' &&
+          'border border-border bg-card text-card-foreground hover:bg-muted',
+        variant === 'destructive' &&
+          'bg-red-700 text-white hover:bg-red-800',
         className,
       )}
       {...props}
