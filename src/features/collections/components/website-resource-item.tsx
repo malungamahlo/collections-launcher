@@ -21,7 +21,7 @@ export function WebsiteResourceItem({
       <button
         type="button"
         onClick={() => onOpen(resource)}
-        className="group flex w-full min-w-0 items-center gap-3 rounded-xl bg-muted/70 px-3 py-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="group flex w-full min-w-0 items-center gap-2.5 rounded-xl bg-muted/70 px-2.5 py-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3 sm:px-3"
         aria-label={`Open ${resource.name}`}
       >
         <span

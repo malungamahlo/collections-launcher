@@ -20,7 +20,7 @@ function App() {
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:gap-10 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
         <DashboardHeader />
 
         <section aria-labelledby="collections-heading">
@@ -32,7 +32,7 @@ function App() {
               Collections
             </h2>
 
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
               Open a saved resource or launch a complete workspace.
             </p>
           </div>

@@ -5,11 +5,11 @@ import { BrandMark } from '@app/shared/components/brand-mark'
  */
 export function DashboardHeader() {
   return (
-    <header className="flex flex-col gap-6 border-b border-border pb-8 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex items-start gap-4">
+    <header className="flex flex-col gap-5 border-b border-border pb-6 sm:pb-8 md:flex-row md:items-start md:justify-between">
+      <div className="flex min-w-0 items-start gap-3 sm:gap-4">
         <BrandMark />
 
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-bold tracking-[0.16em] text-accent uppercase">
             Collections Launcher
           </p>
@@ -24,7 +24,7 @@ export function DashboardHeader() {
         </div>
       </div>
 
-      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+      <div className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
         <span className="size-2 rounded-full bg-emerald-500" />
         Stored on this device
       </div>

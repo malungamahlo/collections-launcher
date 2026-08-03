@@ -6,7 +6,7 @@ import { Card } from '@app/shared/components/ui/card'
  */
 export function CollectionsEmptyState() {
   return (
-    <Card className="mt-6 border-dashed px-6 py-14 text-center shadow-none">
+    <Card className="mt-6 border-dashed px-4 py-10 text-center shadow-none sm:px-6 sm:py-14">
       <span
         className="mx-auto grid size-12 place-items-center rounded-2xl bg-muted text-muted-foreground"
         aria-hidden="true"

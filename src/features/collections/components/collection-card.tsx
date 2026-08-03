@@ -36,7 +36,7 @@ export function CollectionCard({
     <Card
       role="article"
       aria-labelledby={titleId}
-      className="h-full overflow-hidden shadow-[0_12px_30px_rgb(17_26_46_/_0.06)]"
+      className="flex h-full min-w-0 flex-col overflow-hidden shadow-[0_12px_30px_rgb(17_26_46_/_0.06)]"
     >
       <div
         className="h-1.5"
@@ -44,7 +44,7 @@ export function CollectionCard({
         aria-hidden="true"
       />
 
-      <CardHeader>
+      <CardHeader className="p-4 sm:p-5">
         <div className="flex items-start gap-3">
           <span
             className="grid size-10 shrink-0 place-items-center rounded-xl text-white"
@@ -57,7 +57,7 @@ export function CollectionCard({
           <div className="min-w-0">
             <h3
               id={titleId}
-              className="truncate text-lg font-semibold text-card-foreground"
+              className="break-words text-lg leading-6 font-semibold text-card-foreground"
             >
               {collection.name}
             </h3>
@@ -69,13 +69,13 @@ export function CollectionCard({
         </div>
 
         {collection.description && (
-          <p className="pt-2 text-sm leading-6 text-muted-foreground">
+          <p className="break-words pt-2 text-sm leading-6 text-muted-foreground">
             {collection.description}
           </p>
         )}
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="flex-1 px-4 pb-4 sm:px-5 sm:pb-5">
         <ul className="space-y-2">
           {collection.resources.map(resource => (
             <WebsiteResourceItem
