@@ -6,6 +6,7 @@
   "scripts": {
     "start": "wxt",
     "dev": "wxt",
+    "dev:samples": "wxt --mode samples",
     "build": "tsc --noEmit && wxt build",
     "lint": "eslint .",
     "test": "vitest run",

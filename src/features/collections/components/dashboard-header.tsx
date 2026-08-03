@@ -1,9 +1,15 @@
 import { BrandMark } from '@app/shared/components/brand-mark'
 
+interface DashboardHeaderProps {
+  readonly isDevelopmentPreview?: boolean
+}
+
 /**
- * Introduces the dashboard and communicates its local-first behavior.
+ * Introduces the dashboard and identifies whether it shows stored or sample data.
  */
-export function DashboardHeader() {
+export function DashboardHeader({
+  isDevelopmentPreview = false,
+}: DashboardHeaderProps) {
   return (
     <header className="flex flex-col gap-5 border-b border-border pb-6 sm:pb-8 md:flex-row md:items-start md:justify-between">
       <div className="flex min-w-0 items-start gap-3 sm:gap-4">
@@ -25,8 +31,15 @@ export function DashboardHeader() {
       </div>
 
       <div className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-        <span className="size-2 rounded-full bg-emerald-500" />
-        Stored on this device
+        <span
+          aria-hidden="true"
+          className={`size-2 rounded-full ${
+            isDevelopmentPreview ? 'bg-amber-500' : 'bg-emerald-500'
+          }`}
+        />
+        {isDevelopmentPreview
+          ? 'Development preview'
+          : 'Stored on this device'}
       </div>
     </header>
   )

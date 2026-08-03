@@ -1,6 +1,7 @@
 import { CollectionGrid } from '@app/features/collections/components/collection-grid'
 import { CollectionsEmptyState } from '@app/features/collections/components/collections-empty-state'
 import { DashboardHeader } from '@app/features/collections/components/dashboard-header'
+import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/sample-collections'
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
 import type { WebsiteResource } from '@app/features/collections/model/collection.types'
 import { ChromeLocalCollectionsRepository } from '@app/features/collections/storage/chrome-local-collections.repository'
@@ -10,7 +11,14 @@ const collectionsRepository = new ChromeLocalCollectionsRepository()
 const tabsAdapter = new BrowserTabsAdapter()
 
 function App() {
-  const { collections, status } = useCollectionsState(collectionsRepository)
+  const storedState = useCollectionsState(collectionsRepository)
+  const isDevelopmentPreview = import.meta.env.MODE === 'samples'
+
+  // Preview mode displays deterministic data without writing it to user storage.
+  const collections = isDevelopmentPreview
+    ? DEVELOPMENT_SAMPLE_STATE.collections
+    : storedState.collections
+  const status = isDevelopmentPreview ? 'ready' : storedState.status
 
   function handleOpenResource(resource: WebsiteResource): void {
     void tabsAdapter.open(resource.url).catch(error => {
@@ -21,7 +29,7 @@ function App() {
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:gap-10 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
-        <DashboardHeader />
+        <DashboardHeader isDevelopmentPreview={isDevelopmentPreview} />
 
         <section aria-labelledby="collections-heading">
           <div>
