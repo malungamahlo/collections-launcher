@@ -1,5 +1,10 @@
 import tailwindcss from '@tailwindcss/vite'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'wxt'
+
+const chromiumProfile = fileURLToPath(
+  new URL('./.wxt/chromium-profile/', import.meta.url),
+)
 
 export default defineConfig({
   alias: {
@@ -18,6 +23,9 @@ export default defineConfig({
     permissions: ['storage'],
   },
   webExt: {
+    // Keep local extension storage across managed Chrome restarts in development.
+    chromiumProfile,
+    keepProfileChanges: true,
     startUrls: ['chrome://newtab/'],
   },
 })

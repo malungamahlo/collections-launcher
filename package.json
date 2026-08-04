@@ -4,8 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "prestart": "node scripts/ensure-chromium-profile.mjs",
     "start": "wxt",
+    "predev": "node scripts/ensure-chromium-profile.mjs",
     "dev": "wxt",
+    "predev:samples": "node scripts/ensure-chromium-profile.mjs",
     "dev:samples": "wxt --mode samples",
     "build": "tsc --noEmit && wxt build",
     "lint": "eslint .",
