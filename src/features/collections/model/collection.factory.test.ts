@@ -4,6 +4,7 @@ import {
   createWebsiteResource,
   type FactoryDependencies,
   updateCollectionMetadata,
+  updateWebsiteResourceMetadata,
 } from './collection.factory'
 import { createTestCollection } from '../test/collection.fixtures'
 
@@ -142,6 +143,36 @@ describe('createWebsiteResource', () => {
         },
         fixedDependencies,
       ),
-    ).toThrow('Website name cannot be empty')
+    ).toThrow('Enter a website name.')
+  })
+})
+
+describe('updateWebsiteResourceMetadata', () => {
+  it('normalizes editable values and preserves resource identity', () => {
+    const original = {
+      id: 'resource-1',
+      type: 'website' as const,
+      name: 'GitHub',
+      url: 'https://github.com/',
+      createdAt: 1_000,
+      updatedAt: 1_000,
+    }
+
+    const updated = updateWebsiteResourceMetadata(
+      original,
+      {
+        name: '  GitHub Projects  ',
+        url: ' github.com/features/issues ',
+      },
+      2_000,
+    )
+
+    expect(updated).toEqual({
+      ...original,
+      name: 'GitHub Projects',
+      url: 'https://github.com/features/issues',
+      iconUrl: undefined,
+      updatedAt: 2_000,
+    })
   })
 })

@@ -5,6 +5,7 @@ import { browser } from 'wxt/browser'
  */
 export interface TabsAdapter {
   open(url: string): Promise<void>
+  openMany(urls: readonly string[]): Promise<void>
 }
 
 /**
@@ -16,5 +17,15 @@ export class BrowserTabsAdapter implements TabsAdapter {
       url,
       active: true,
     })
+  }
+
+  /** Opens websites in saved order, activating the first created tab. */
+  async openMany(urls: readonly string[]): Promise<void> {
+    for (const [index, url] of urls.entries()) {
+      await browser.tabs.create({
+        url,
+        active: index === 0,
+      })
+    }
   }
 }

@@ -4,6 +4,7 @@ import type {
   WebsiteResource,
 } from './collection.types'
 import { normalizeCollectionName } from './collection.validation'
+import { normalizeWebsiteName } from './website-resource.validation'
 import { normalizeWebsiteUrl } from './website-url'
 
 /** User-provided values required to create a new collection. */
@@ -24,6 +25,9 @@ export interface CreateWebsiteResourceInput {
   readonly iconUrl?: string
 }
 
+/** User-provided values that can change on an existing website resource. */
+export type UpdateWebsiteResourceInput = CreateWebsiteResourceInput
+
 /**
  * Replaceable system functions used by the factories.
  * Supplying fixed implementations makes factory behaviour easy to test.
@@ -37,19 +41,6 @@ export interface FactoryDependencies {
 const defaultDependencies: FactoryDependencies = {
   generateId: () => crypto.randomUUID(),
   now: () => Date.now(),
-}
-
-/**
- * Trims required text and rejects values that contain only whitespace.
- */
-function normalizeRequiredText(value: string, field: string): string {
-  const normalizedValue = value.trim()
-
-  if (!normalizedValue) {
-    throw new TypeError(`${field} cannot be empty`)
-  }
-
-  return normalizedValue
 }
 
 /**
@@ -119,10 +110,29 @@ export function createWebsiteResource(
   return {
     id: dependencies.generateId(),
     type: 'website',
-    name: normalizeRequiredText(input.name, 'Website name'),
+    name: normalizeWebsiteName(input.name),
     url: normalizeWebsiteUrl(input.url),
     ...(iconUrl ? { iconUrl } : {}),
     createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+/**
+ * Applies normalized website metadata while preserving identity and creation time.
+ */
+export function updateWebsiteResourceMetadata(
+  resource: WebsiteResource,
+  input: UpdateWebsiteResourceInput,
+  timestamp: Timestamp = Date.now(),
+): WebsiteResource {
+  const iconUrl = normalizeOptionalText(input.iconUrl)
+
+  return {
+    ...resource,
+    name: normalizeWebsiteName(input.name),
+    url: normalizeWebsiteUrl(input.url),
+    ...(iconUrl ? { iconUrl } : { iconUrl: undefined }),
     updatedAt: timestamp,
   }
 }

@@ -9,8 +9,12 @@ describe('CollectionGrid', () => {
       <CollectionGrid
         collections={DEVELOPMENT_SAMPLE_STATE.collections}
         onOpenResource={() => undefined}
+        onOpenAll={() => undefined}
         onEditCollection={() => undefined}
         onDeleteCollection={() => undefined}
+        onAddResource={() => undefined}
+        onEditResource={() => undefined}
+        onDeleteResource={() => undefined}
       />,
     )
 
@@ -23,6 +27,13 @@ describe('CollectionGrid', () => {
 
       expect(markup).toContain(`Edit ${collection.name}`)
       expect(markup).toContain(`Delete ${collection.name}`)
+      expect(markup).toContain('Open all')
+      expect(markup).toContain('Add website')
+
+      for (const resource of collection.resources) {
+        expect(markup).toContain(`Edit ${resource.name}`)
+        expect(markup).toContain(`Delete ${resource.name}`)
+      }
     }
   })
 })

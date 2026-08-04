@@ -71,6 +71,51 @@ describe('collection operations', () => {
     expect(collection.resources).toEqual([])
   })
 
+  it('rejects a duplicate normalized URL inside one collection', () => {
+    const existingResource = createTestWebsiteResource()
+    const duplicateResource = createTestWebsiteResource({
+      id: 'resource-2',
+      name: 'GitHub again',
+    })
+    const collection = createTestCollection({
+      resources: [existingResource],
+    })
+    const state = createTestState({ collections: [collection] })
+
+    expect(() =>
+      addResourceToCollection(
+        state,
+        collection.id,
+        duplicateResource,
+        2_000,
+      ),
+    ).toThrowError(
+      expect.objectContaining({ code: 'DUPLICATE_RESOURCE_URL' }),
+    )
+  })
+
+  it('allows the same URL in different collections', () => {
+    const resource = createTestWebsiteResource()
+    const source = createTestCollection({ resources: [resource] })
+    const target = createTestCollection({
+      id: 'collection-2',
+      name: 'Research',
+    })
+    const state = createTestState({ collections: [source, target] })
+    const repeatedResource = createTestWebsiteResource({
+      id: 'resource-2',
+    })
+
+    const result = addResourceToCollection(
+      state,
+      target.id,
+      repeatedResource,
+      2_000,
+    )
+
+    expect(result.collections[1]?.resources).toEqual([repeatedResource])
+  })
+
   it('updates and removes a resource', () => {
     const resource = createTestWebsiteResource()
     const collection = createTestCollection({ resources: [resource] })
@@ -138,6 +183,25 @@ describe('collection operations', () => {
     )
 
     expect(result).toBe(state)
+  })
+
+  it('rejects moving a URL into a collection that already contains it', () => {
+    const resource = createTestWebsiteResource()
+    const source = createTestCollection({ resources: [resource] })
+    const target = createTestCollection({
+      id: 'collection-2',
+      name: 'Research',
+      resources: [
+        createTestWebsiteResource({ id: 'resource-2', name: 'Duplicate' }),
+      ],
+    })
+    const state = createTestState({ collections: [source, target] })
+
+    expect(() =>
+      moveResource(state, source.id, target.id, resource.id, 2_000),
+    ).toThrowError(
+      expect.objectContaining({ code: 'DUPLICATE_RESOURCE_URL' }),
+    )
   })
 
   it('throws a typed error for a missing collection', () => {

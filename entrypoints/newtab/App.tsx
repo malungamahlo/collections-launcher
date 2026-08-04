@@ -6,10 +6,16 @@ import { CollectionFormDialog } from '@app/features/collections/components/colle
 import { CollectionsEmptyState } from '@app/features/collections/components/collections-empty-state'
 import { DashboardHeader } from '@app/features/collections/components/dashboard-header'
 import { DeleteCollectionDialog } from '@app/features/collections/components/delete-collection-dialog'
+import { DeleteWebsiteResourceDialog } from '@app/features/collections/components/delete-website-resource-dialog'
+import { WebsiteResourceFormDialog } from '@app/features/collections/components/website-resource-form-dialog'
 import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/sample-collections'
 import { useCollectionManagement } from '@app/features/collections/hooks/use-collection-management'
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
-import type { WebsiteResource } from '@app/features/collections/model/collection.types'
+import { useWebsiteResourceManagement } from '@app/features/collections/hooks/use-website-resource-management'
+import type {
+  Collection,
+  WebsiteResource,
+} from '@app/features/collections/model/collection.types'
 import { ChromeLocalCollectionsRepository } from '@app/features/collections/storage/chrome-local-collections.repository'
 import { BrowserTabsAdapter } from '@app/platform/browser/tabs.adapter'
 
@@ -24,6 +30,10 @@ function App() {
     state: storedCollections.state,
     save: storedCollections.save,
   })
+  const resourceManagement = useWebsiteResourceManagement({
+    state: storedCollections.state,
+    save: storedCollections.save,
+  })
 
   // Preview mode displays deterministic data without writing it to user storage.
   const collections = isDevelopmentPreview
@@ -35,6 +45,18 @@ function App() {
     void tabsAdapter.open(resource.url).catch(error => {
       console.error(`Could not open ${resource.url}`, error)
     })
+  }
+
+  function handleOpenAll(collection: Collection): void {
+    if (collection.resources.length === 0) {
+      return
+    }
+
+    void tabsAdapter
+      .openMany(collection.resources.map(resource => resource.url))
+      .catch(error => {
+        console.error(`Could not open collection ${collection.id}`, error)
+      })
   }
 
   return (
@@ -89,11 +111,27 @@ function App() {
             <CollectionGrid
               collections={collections}
               onOpenResource={handleOpenResource}
+              onOpenAll={handleOpenAll}
               onEditCollection={
                 isDevelopmentPreview ? undefined : management.openEdit
               }
               onDeleteCollection={
                 isDevelopmentPreview ? undefined : management.requestDelete
+              }
+              onAddResource={
+                isDevelopmentPreview
+                  ? undefined
+                  : resourceManagement.openCreate
+              }
+              onEditResource={
+                isDevelopmentPreview
+                  ? undefined
+                  : resourceManagement.openEdit
+              }
+              onDeleteResource={
+                isDevelopmentPreview
+                  ? undefined
+                  : resourceManagement.requestDelete
               }
             />
           )}
@@ -122,6 +160,34 @@ function App() {
           fallbackFocusRef={dashboardFallbackFocusRef}
           onConfirm={() => void management.confirmDelete()}
           onClose={management.cancelDelete}
+        />
+      )}
+
+      {resourceManagement.editor && (
+        <WebsiteResourceFormDialog
+          mode={resourceManagement.editor.mode}
+          values={resourceManagement.formValues}
+          collections={storedCollections.state.collections}
+          nameError={resourceManagement.nameError}
+          urlError={resourceManagement.urlError}
+          submissionError={resourceManagement.formError}
+          isSubmitting={resourceManagement.isSaving}
+          fallbackFocusRef={dashboardFallbackFocusRef}
+          onValuesChange={resourceManagement.updateFormValues}
+          onSubmit={() => void resourceManagement.submitEditor()}
+          onClose={resourceManagement.closeEditor}
+        />
+      )}
+
+      {resourceManagement.resourceToDelete && (
+        <DeleteWebsiteResourceDialog
+          collection={resourceManagement.resourceToDelete.collection}
+          resource={resourceManagement.resourceToDelete.resource}
+          isDeleting={resourceManagement.isSaving}
+          errorMessage={resourceManagement.deleteError}
+          fallbackFocusRef={dashboardFallbackFocusRef}
+          onConfirm={() => void resourceManagement.confirmDelete()}
+          onClose={resourceManagement.cancelDelete}
         />
       )}
     </main>

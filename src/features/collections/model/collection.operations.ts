@@ -13,6 +13,7 @@ export type CollectionOperationErrorCode =
   | 'RESOURCE_NOT_FOUND'
   | 'DUPLICATE_COLLECTION_ID'
   | 'DUPLICATE_RESOURCE_ID'
+  | 'DUPLICATE_RESOURCE_URL'
 
 /**
  * Identifies a predictable failure while changing collection state.
@@ -99,6 +100,27 @@ function ensureUniqueResourceId(
     throw new CollectionOperationError(
       'DUPLICATE_RESOURCE_ID',
       `Resource "${resourceId}" already exists`,
+    )
+  }
+}
+
+/**
+ * Rejects a normalized URL already used by another resource in a collection.
+ */
+function ensureUniqueResourceUrl(
+  collection: Collection,
+  resource: CollectionResource,
+): void {
+  const alreadyExists = collection.resources.some(
+    existingResource =>
+      existingResource.id !== resource.id &&
+      existingResource.url === resource.url,
+  )
+
+  if (alreadyExists) {
+    throw new CollectionOperationError(
+      'DUPLICATE_RESOURCE_URL',
+      'This website is already saved in that collection.',
     )
   }
 }
@@ -197,6 +219,7 @@ export function addResourceToCollection(
 ): CollectionsState {
   const collection = findCollection(state, collectionId)
   ensureUniqueResourceId(state, resource.id)
+  ensureUniqueResourceUrl(collection, resource)
 
   return replaceCollection(state, {
     ...collection,
@@ -216,6 +239,7 @@ export function updateResourceInCollection(
 ): CollectionsState {
   const collection = findCollection(state, collectionId)
   findResource(collection, resource.id)
+  ensureUniqueResourceUrl(collection, resource)
 
   return replaceCollection(state, {
     ...collection,
@@ -263,9 +287,10 @@ export function moveResource(
   }
 
   const sourceCollection = findCollection(state, sourceCollectionId)
-  findCollection(state, targetCollectionId)
+  const targetCollection = findCollection(state, targetCollectionId)
 
   const resource = findResource(sourceCollection, resourceId)
+  ensureUniqueResourceUrl(targetCollection, resource)
   const stateWithoutResource = removeResourceFromCollection(
     state,
     sourceCollectionId,

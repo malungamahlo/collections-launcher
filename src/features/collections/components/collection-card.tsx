@@ -1,8 +1,10 @@
 import {
   Cloud,
   Code2,
+  ExternalLink,
   Folder,
   Pencil,
+  Plus,
   Search,
   Trash2,
   type LucideIcon,
@@ -20,8 +22,18 @@ import { WebsiteResourceItem } from './website-resource-item'
 interface CollectionCardProps {
   readonly collection: Collection
   readonly onOpenResource: (resource: WebsiteResource) => void
+  readonly onOpenAll: (collection: Collection) => void
   readonly onEdit?: (collection: Collection) => void
   readonly onDelete?: (collection: Collection) => void
+  readonly onAddResource?: (collection: Collection) => void
+  readonly onEditResource?: (
+    collection: Collection,
+    resource: WebsiteResource,
+  ) => void
+  readonly onDeleteResource?: (
+    collection: Collection,
+    resource: WebsiteResource,
+  ) => void
 }
 
 const COLLECTION_ICONS: Readonly<Record<string, LucideIcon>> = {
@@ -36,8 +48,12 @@ const COLLECTION_ICONS: Readonly<Record<string, LucideIcon>> = {
 export function CollectionCard({
   collection,
   onOpenResource,
+  onOpenAll,
   onEdit,
   onDelete,
+  onAddResource,
+  onEditResource,
+  onDeleteResource,
 }: CollectionCardProps) {
   const titleId = useId()
   const CollectionIcon = COLLECTION_ICONS[collection.icon ?? ''] ?? Folder
@@ -116,15 +132,56 @@ export function CollectionCard({
             {collection.description}
           </p>
         )}
+
+        <div className="flex flex-col gap-2 pt-3 sm:flex-row">
+          <Button
+            variant="secondary"
+            className="flex-1 gap-2"
+            disabled={collection.resources.length === 0}
+            onClick={() => onOpenAll(collection)}
+          >
+            <ExternalLink className="size-4" aria-hidden="true" />
+            Open all
+          </Button>
+
+          {onAddResource && (
+            <Button
+              variant="secondary"
+              className="flex-1 gap-2"
+              onClick={() => onAddResource(collection)}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              Add website
+            </Button>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent className="flex-1 px-4 pb-4 sm:px-5 sm:pb-5">
+        {collection.resources.length === 0 && (
+          <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-sm text-muted-foreground">
+            No websites saved yet.
+          </p>
+        )}
+
         <ul className="space-y-2">
           {collection.resources.map(resource => (
             <WebsiteResourceItem
               key={resource.id}
               resource={resource}
               onOpen={onOpenResource}
+              onEdit={
+                onEditResource
+                  ? currentResource =>
+                      onEditResource(collection, currentResource)
+                  : undefined
+              }
+              onDelete={
+                onDeleteResource
+                  ? currentResource =>
+                      onDeleteResource(collection, currentResource)
+                  : undefined
+              }
             />
           ))}
         </ul>

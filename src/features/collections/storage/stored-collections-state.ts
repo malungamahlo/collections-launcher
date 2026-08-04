@@ -5,6 +5,7 @@ import {
   type WebsiteResource,
 } from '../model/collection.types'
 import { getCollectionNameValidationError } from '../model/collection.validation'
+import { getWebsiteNameValidationError } from '../model/website-resource.validation'
 
 /** Outcomes produced when resolving a value read from browser storage. */
 export type StoredStateStatus =
@@ -80,7 +81,7 @@ function isWebsiteResource(value: unknown): value is WebsiteResource {
     value.id.trim().length > 0 &&
     value.type === 'website' &&
     typeof value.name === 'string' &&
-    value.name.trim().length > 0 &&
+    getWebsiteNameValidationError(value.name) === undefined &&
     isValidStoredWebsiteUrl(value.url) &&
     isOptionalString(value.iconUrl) &&
     isTimestamp(value.createdAt) &&
