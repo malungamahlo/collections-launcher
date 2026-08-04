@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react'
+import { useRef } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { CollectionGrid } from '@app/features/collections/components/collection-grid'
 import { CollectionFormDialog } from '@app/features/collections/components/collection-form-dialog'
@@ -16,6 +17,7 @@ const collectionsRepository = new ChromeLocalCollectionsRepository()
 const tabsAdapter = new BrowserTabsAdapter()
 
 function App() {
+  const dashboardFallbackFocusRef = useRef<HTMLButtonElement>(null)
   const storedCollections = useCollectionsState(collectionsRepository)
   const isDevelopmentPreview = import.meta.env.MODE === 'samples'
   const management = useCollectionManagement({
@@ -56,7 +58,11 @@ function App() {
             </div>
 
             {!isDevelopmentPreview && status === 'ready' && (
-              <Button className="w-full gap-2 sm:w-auto" onClick={management.openCreate}>
+              <Button
+                ref={dashboardFallbackFocusRef}
+                className="w-full gap-2 sm:w-auto"
+                onClick={management.openCreate}
+              >
                 <Plus className="size-4" aria-hidden="true" />
                 New collection
               </Button>
@@ -101,6 +107,7 @@ function App() {
           nameError={management.nameError}
           submissionError={management.formError}
           isSubmitting={management.isSaving}
+          fallbackFocusRef={dashboardFallbackFocusRef}
           onValuesChange={management.updateFormValues}
           onSubmit={() => void management.submitEditor()}
           onClose={management.closeEditor}
@@ -112,6 +119,7 @@ function App() {
           collection={management.collectionToDelete}
           isDeleting={management.isSaving}
           errorMessage={management.deleteError}
+          fallbackFocusRef={dashboardFallbackFocusRef}
           onConfirm={() => void management.confirmDelete()}
           onClose={management.cancelDelete}
         />

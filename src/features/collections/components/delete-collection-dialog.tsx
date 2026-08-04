@@ -1,11 +1,13 @@
 import { Button } from '@app/shared/components/ui/button'
 import { Dialog } from '@app/shared/components/ui/dialog'
+import type { RefObject } from 'react'
 import type { Collection } from '../model/collection.types'
 
 interface DeleteCollectionDialogProps {
   readonly collection: Collection
   readonly isDeleting: boolean
   readonly errorMessage?: string
+  readonly fallbackFocusRef?: RefObject<HTMLElement | null>
   readonly onConfirm: () => void
   readonly onClose: () => void
 }
@@ -17,6 +19,7 @@ export function DeleteCollectionDialog({
   collection,
   isDeleting,
   errorMessage,
+  fallbackFocusRef,
   onConfirm,
   onClose,
 }: DeleteCollectionDialogProps) {
@@ -30,6 +33,7 @@ export function DeleteCollectionDialog({
     <Dialog
       title="Delete collection?"
       description={`“${collection.name}” will be permanently deleted. ${resourceWarning}`}
+      fallbackFocusRef={fallbackFocusRef}
       onClose={onClose}
     >
       {errorMessage && (
@@ -41,6 +45,7 @@ export function DeleteCollectionDialog({
       <div className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:justify-end">
         <Button
           variant="secondary"
+          autoFocus
           disabled={isDeleting}
           onClick={onClose}
         >

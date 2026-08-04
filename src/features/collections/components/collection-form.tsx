@@ -1,4 +1,4 @@
-import { useId, type FormEvent } from 'react'
+import { useEffect, useId, useRef, type FormEvent } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { Input } from '@app/shared/components/ui/input'
 import { Select } from '@app/shared/components/ui/select'
@@ -30,11 +30,18 @@ export function CollectionForm({
   onCancel,
 }: CollectionFormProps) {
   const formId = useId()
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const nameId = `${formId}-name`
   const nameErrorId = `${formId}-name-error`
   const descriptionId = `${formId}-description`
   const iconId = `${formId}-icon`
   const colorId = `${formId}-color`
+
+  useEffect(() => {
+    if (nameError) {
+      nameInputRef.current?.focus()
+    }
+  }, [nameError])
 
   /** Prevents page navigation and delegates submission to the parent workflow. */
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
@@ -52,11 +59,13 @@ export function CollectionForm({
           Collection name
         </label>
         <Input
+          ref={nameInputRef}
           id={nameId}
           name="name"
           value={values.name}
           placeholder="For example, Development"
           autoComplete="off"
+          autoFocus
           required
           aria-invalid={nameError ? 'true' : undefined}
           aria-describedby={nameError ? nameErrorId : undefined}

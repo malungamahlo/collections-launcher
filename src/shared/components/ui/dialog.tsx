@@ -1,9 +1,16 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 
 interface DialogProps {
   readonly title: string
   readonly description?: string
   readonly children: ReactNode
+  readonly fallbackFocusRef?: RefObject<HTMLElement | null>
   readonly onClose: () => void
 }
 
@@ -14,19 +21,53 @@ export function Dialog({
   title,
   description,
   children,
+  fallbackFocusRef,
   onClose,
 }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const returnFocusElementRef = useRef<HTMLElement | null>(
+    typeof document !== 'undefined' &&
+      document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  )
+  const focusRestorationControllerRef = useRef<AbortController | undefined>(
+    undefined,
+  )
   const titleId = useId()
   const descriptionId = useId()
 
   useEffect(() => {
     const dialog = dialogRef.current
+    const returnFocusElement = returnFocusElementRef.current
+    const fallbackFocusElement = fallbackFocusRef?.current
+    const restorationController = new AbortController()
+
+    focusRestorationControllerRef.current?.abort()
+    focusRestorationControllerRef.current = restorationController
 
     if (dialog && !dialog.open) {
       dialog.showModal()
     }
-  }, [])
+
+    return () => {
+      if (dialog?.open) {
+        dialog.close()
+      }
+
+      queueMicrotask(() => {
+        if (restorationController.signal.aborted) {
+          return
+        }
+
+        const focusTarget = returnFocusElement?.isConnected
+          ? returnFocusElement
+          : fallbackFocusElement
+
+        focusTarget?.focus()
+      })
+    }
+  }, [fallbackFocusRef])
 
   return (
     <dialog

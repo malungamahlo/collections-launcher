@@ -1,4 +1,5 @@
 import { Dialog } from '@app/shared/components/ui/dialog'
+import type { RefObject } from 'react'
 import { CollectionForm } from './collection-form'
 import type { CollectionFormValues } from './collection-form.types'
 
@@ -8,6 +9,7 @@ interface CollectionFormDialogProps {
   readonly nameError?: string
   readonly submissionError?: string
   readonly isSubmitting: boolean
+  readonly fallbackFocusRef?: RefObject<HTMLElement | null>
   readonly onValuesChange: (values: CollectionFormValues) => void
   readonly onSubmit: () => void
   readonly onClose: () => void
@@ -22,6 +24,7 @@ export function CollectionFormDialog({
   nameError,
   submissionError,
   isSubmitting,
+  fallbackFocusRef,
   onValuesChange,
   onSubmit,
   onClose,
@@ -36,6 +39,7 @@ export function CollectionFormDialog({
           ? 'Group websites that you use for the same purpose.'
           : 'Update how this collection appears on your dashboard.'
       }
+      fallbackFocusRef={fallbackFocusRef}
       onClose={onClose}
     >
       <CollectionForm
