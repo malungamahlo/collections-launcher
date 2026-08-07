@@ -20,7 +20,7 @@ export default defineConfig({
   manifest: {
     name: 'Collections Launcher',
     description: 'Organize websites into reusable collections.',
-    permissions: ['storage'],
+    permissions: ['storage', 'activeTab'],
   },
   webExt: {
     // Keep local extension storage across managed Chrome restarts in development.
