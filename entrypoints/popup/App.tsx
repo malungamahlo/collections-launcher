@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { ToolbarCaptureForm } from '@app/features/capture/components/toolbar-capture-form'
 import { useActivePage } from '@app/features/capture/hooks/use-active-page'
@@ -15,6 +16,7 @@ import { BrandMark } from '@app/shared/components/brand-mark'
 
 const collectionsRepository = new ChromeLocalCollectionsRepository()
 const activeTabAdapter = new BrowserActiveTabAdapter()
+const AUTO_CLOSE_DELAY_MS = 1500
 
 interface CaptureReadyProps {
   readonly page: ActivePage
@@ -25,6 +27,16 @@ interface CaptureReadyProps {
 /** Connects the capture form to domain operations after all data has loaded. */
 function CaptureReady({ page, state, save }: CaptureReadyProps) {
   const capture = useToolbarCapture({ page, state, save })
+
+  useEffect(() => {
+    if (!capture.successMessage) return
+
+    const timeoutId = window.setTimeout(() => {
+      window.close()
+    }, AUTO_CLOSE_DELAY_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [capture.successMessage])
 
   return (
     <ToolbarCaptureForm
