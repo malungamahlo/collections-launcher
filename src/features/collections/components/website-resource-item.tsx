@@ -26,7 +26,7 @@ export function WebsiteResourceItem({
       <button
         type="button"
         onClick={() => onOpen(resource)}
-        className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl bg-muted/70 px-2.5 py-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3 sm:px-3"
+        className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl bg-muted/70 px-2.5 py-2.5 text-left transition-all duration-150 hover:bg-slate-300 hover:shadow-[0_8px_20px_rgb(17_26_46_/_0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3 sm:px-3"
         aria-label={`Open ${resource.name}`}
       >
         <span
@@ -55,7 +55,7 @@ export function WebsiteResourceItem({
       {onEdit && (
         <Button
           variant="secondary"
-          className="size-9 shrink-0 px-0"
+          className="size-9 shrink-0 px-0 hover:bg-slate-300"
           aria-label={`Edit ${resource.name}`}
           title={`Edit ${resource.name}`}
           onClick={() => onEdit(resource)}
@@ -67,7 +67,7 @@ export function WebsiteResourceItem({
       {onDelete && (
         <Button
           variant="secondary"
-          className="size-9 shrink-0 px-0 text-red-700 hover:bg-red-50"
+          className="size-9 shrink-0 px-0 text-red-700 hover:bg-red-300"
           aria-label={`Delete ${resource.name}`}
           title={`Delete ${resource.name}`}
           onClick={() => onDelete(resource)}

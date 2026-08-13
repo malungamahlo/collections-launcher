@@ -103,7 +103,7 @@ export function CollectionCard({
               {onEdit && (
                 <Button
                   variant="secondary"
-                  className="size-9 px-0"
+                  className="size-9 px-0 hover:bg-slate-300"
                   aria-label={`Edit ${collection.name}`}
                   title={`Edit ${collection.name}`}
                   onClick={() => onEdit(collection)}
@@ -115,7 +115,7 @@ export function CollectionCard({
               {onDelete && (
                 <Button
                   variant="secondary"
-                  className="size-9 px-0 text-red-700 hover:bg-red-50"
+                  className="size-9 px-0 text-red-700 hover:bg-red-300"
                   aria-label={`Delete ${collection.name}`}
                   title={`Delete ${collection.name}`}
                   onClick={() => onDelete(collection)}
@@ -136,7 +136,7 @@ export function CollectionCard({
         <div className="flex flex-col gap-2 pt-3 sm:flex-row">
           <Button
             variant="secondary"
-            className="flex-1 gap-2"
+            className="flex-1 gap-2 hover:bg-slate-300"
             disabled={collection.resources.length === 0}
             onClick={() => onOpenAll(collection)}
           >
@@ -147,7 +147,7 @@ export function CollectionCard({
           {onAddResource && (
             <Button
               variant="secondary"
-              className="flex-1 gap-2"
+              className="flex-1 gap-2 hover:bg-slate-300"
               onClick={() => onAddResource(collection)}
             >
               <Plus className="size-4" aria-hidden="true" />
