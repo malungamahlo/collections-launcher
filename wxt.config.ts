@@ -21,6 +21,15 @@ export default defineConfig({
     name: 'Collections Launcher',
     description: 'Organize websites into reusable collections.',
     permissions: ['storage', 'activeTab'],
+    commands: {
+      _execute_action: {
+        suggested_key: {
+          default: 'Ctrl+Shift+S',
+          mac: 'Command+Shift+S',
+        },
+        description: 'Save the current page to a collection',
+      },
+    },
   },
   webExt: {
     // Keep local extension storage across managed Chrome restarts in development.
