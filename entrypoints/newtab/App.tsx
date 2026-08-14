@@ -3,13 +3,16 @@ import { useRef } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { CollectionGrid } from '@app/features/collections/components/collection-grid'
 import { CollectionFormDialog } from '@app/features/collections/components/collection-form-dialog'
+import { CollectionSearchInput } from '@app/features/collections/components/collection-search-input'
 import { CollectionsEmptyState } from '@app/features/collections/components/collections-empty-state'
 import { DashboardHeader } from '@app/features/collections/components/dashboard-header'
 import { DeleteCollectionDialog } from '@app/features/collections/components/delete-collection-dialog'
 import { DeleteWebsiteResourceDialog } from '@app/features/collections/components/delete-website-resource-dialog'
+import { NoSearchResultsEmptyState } from '@app/features/collections/components/no-search-results-empty-state'
 import { WebsiteResourceFormDialog } from '@app/features/collections/components/website-resource-form-dialog'
 import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/sample-collections'
 import { useCollectionManagement } from '@app/features/collections/hooks/use-collection-management'
+import { useCollectionSearch } from '@app/features/collections/hooks/use-collection-search'
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
 import { useWebsiteResourceManagement } from '@app/features/collections/hooks/use-website-resource-management'
 import type {
@@ -40,6 +43,7 @@ function App() {
     ? DEVELOPMENT_SAMPLE_STATE.collections
     : storedCollections.state.collections
   const status = isDevelopmentPreview ? 'ready' : storedCollections.status
+  const search = useCollectionSearch(collections)
 
   function handleOpenResource(resource: WebsiteResource): void {
     void tabsAdapter.open(resource.url).catch(error => {
@@ -79,16 +83,38 @@ function App() {
               </p>
             </div>
 
-            {!isDevelopmentPreview && status === 'ready' && (
-              <Button
-                ref={dashboardFallbackFocusRef}
-                className="w-full gap-2 sm:w-auto"
-                onClick={management.openCreate}
-              >
-                <Plus className="size-4" aria-hidden="true" />
-                New collection
-              </Button>
+            {status === 'ready' && collections.length > 0 && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <CollectionSearchInput
+                  value={search.query}
+                  onChange={search.setQuery}
+                />
+
+                {!isDevelopmentPreview && (
+                  <Button
+                    ref={dashboardFallbackFocusRef}
+                    className="w-full shrink-0 gap-2 whitespace-nowrap sm:w-auto"
+                    onClick={management.openCreate}
+                  >
+                    <Plus className="size-4" aria-hidden="true" />
+                    New collection
+                  </Button>
+                )}
+              </div>
             )}
+
+            {!isDevelopmentPreview &&
+              status === 'ready' &&
+              collections.length === 0 && (
+                <Button
+                  ref={dashboardFallbackFocusRef}
+                  className="w-full gap-2 sm:w-auto"
+                  onClick={management.openCreate}
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                  New collection
+                </Button>
+              )}
           </div>
 
           {status === 'loading' && (
@@ -107,9 +133,15 @@ function App() {
             <CollectionsEmptyState />
           )}
 
-          {status === 'ready' && collections.length > 0 && (
+          {status === 'ready' &&
+            collections.length > 0 &&
+            search.filteredCollections.length === 0 && (
+              <NoSearchResultsEmptyState query={search.query} />
+            )}
+
+          {status === 'ready' && search.filteredCollections.length > 0 && (
             <CollectionGrid
-              collections={collections}
+              collections={search.filteredCollections}
               onOpenResource={handleOpenResource}
               onOpenAll={handleOpenAll}
               onEditCollection={
