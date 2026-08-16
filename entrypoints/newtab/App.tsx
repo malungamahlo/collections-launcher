@@ -64,12 +64,17 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:gap-10 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
-        <DashboardHeader isDevelopmentPreview={isDevelopmentPreview} />
+    <main className="flex h-[100dvh] flex-col overflow-hidden bg-background">
+      <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
+        <div className="shrink-0">
+          <DashboardHeader isDevelopmentPreview={isDevelopmentPreview} />
+        </div>
 
-        <section aria-labelledby="collections-heading">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <section
+          aria-labelledby="collections-heading"
+          className="flex min-h-0 flex-1 flex-col gap-4"
+        >
+          <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2
                 id="collections-heading"
@@ -118,54 +123,63 @@ function App() {
           </div>
 
           {status === 'loading' && (
-            <p className="mt-6 text-sm text-muted-foreground" role="status">
+            <p
+              className="mt-6 shrink-0 text-sm text-muted-foreground"
+              role="status"
+            >
               Loading collections…
             </p>
           )}
 
           {status === 'error' && (
-            <p className="mt-6 text-sm text-red-700" role="alert">
+            <p className="mt-6 shrink-0 text-sm text-red-700" role="alert">
               Collections could not be loaded. Open a new tab to try again.
             </p>
           )}
 
           {status === 'ready' && collections.length === 0 && (
-            <CollectionsEmptyState />
+            <div className="shrink-0">
+              <CollectionsEmptyState />
+            </div>
           )}
 
           {status === 'ready' &&
             collections.length > 0 &&
             search.filteredCollections.length === 0 && (
-              <NoSearchResultsEmptyState query={search.query} />
+              <div className="shrink-0">
+                <NoSearchResultsEmptyState query={search.query} />
+              </div>
             )}
 
           {status === 'ready' && search.filteredCollections.length > 0 && (
-            <CollectionGrid
-              collections={search.filteredCollections}
-              onOpenResource={handleOpenResource}
-              onOpenAll={handleOpenAll}
-              onEditCollection={
-                isDevelopmentPreview ? undefined : management.openEdit
-              }
-              onDeleteCollection={
-                isDevelopmentPreview ? undefined : management.requestDelete
-              }
-              onAddResource={
-                isDevelopmentPreview
-                  ? undefined
-                  : resourceManagement.openCreate
-              }
-              onEditResource={
-                isDevelopmentPreview
-                  ? undefined
-                  : resourceManagement.openEdit
-              }
-              onDeleteResource={
-                isDevelopmentPreview
-                  ? undefined
-                  : resourceManagement.requestDelete
-              }
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <CollectionGrid
+                collections={search.filteredCollections}
+                onOpenResource={handleOpenResource}
+                onOpenAll={handleOpenAll}
+                onEditCollection={
+                  isDevelopmentPreview ? undefined : management.openEdit
+                }
+                onDeleteCollection={
+                  isDevelopmentPreview ? undefined : management.requestDelete
+                }
+                onAddResource={
+                  isDevelopmentPreview
+                    ? undefined
+                    : resourceManagement.openCreate
+                }
+                onEditResource={
+                  isDevelopmentPreview
+                    ? undefined
+                    : resourceManagement.openEdit
+                }
+                onDeleteResource={
+                  isDevelopmentPreview
+                    ? undefined
+                    : resourceManagement.requestDelete
+                }
+              />
+            </div>
           )}
         </section>
       </div>

@@ -11,7 +11,7 @@ export function DashboardHeader({
   isDevelopmentPreview = false,
 }: DashboardHeaderProps) {
   return (
-    <header className="flex flex-col gap-5 border-b border-border pb-6 sm:pb-8 md:flex-row md:items-start md:justify-between">
+    <header className="flex flex-col gap-3 border-b border-border pb-4 sm:pb-6 md:flex-row md:items-start md:justify-between">
       <div className="flex min-w-0 items-start gap-3 sm:gap-4">
         <BrandMark />
 
@@ -20,13 +20,9 @@ export function DashboardHeader({
             Collections Launcher
           </p>
 
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Your collections
-          </h1>
-
-          <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
+          <h1 className="mt-1 max-w-2xl text-base leading-7 font-normal text-muted-foreground">
             Everything you need, grouped by purpose and ready to launch.
-          </p>
+          </h1>
         </div>
       </div>
 
