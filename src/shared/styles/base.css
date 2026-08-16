@@ -55,3 +55,28 @@
     outline-offset: 3px;
   }
 }
+
+@layer utilities {
+  /* A slim, unobtrusive scrollbar for internal scroll regions (collection cards, the grid). */
+  .scroll-slim {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .scroll-slim::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scroll-slim::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scroll-slim::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+  }
+
+  .scroll-slim::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+  }
+}

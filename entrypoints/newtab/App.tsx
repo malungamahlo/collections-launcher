@@ -152,7 +152,7 @@ function App() {
             )}
 
           {status === 'ready' && search.filteredCollections.length > 0 && (
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="scroll-slim min-h-0 flex-1 overflow-y-auto">
               <CollectionGrid
                 collections={search.filteredCollections}
                 onOpenResource={handleOpenResource}

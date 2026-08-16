@@ -1,4 +1,5 @@
 import {
+  ChevronDown,
   Cloud,
   Code2,
   ExternalLink,
@@ -41,6 +42,9 @@ const COLLECTION_ICONS: Readonly<Record<string, LucideIcon>> = {
   code: Code2,
   search: Search,
 }
+
+/** Approximate number of resource rows that fit before the list scrolls internally. */
+const VISIBLE_RESOURCE_ROWS = 5
 
 /**
  * Displays one collection and its website resources.
@@ -164,27 +168,40 @@ export function CollectionCard({
           </p>
         )}
 
-        <ul className="space-y-2">
-          {collection.resources.map(resource => (
-            <WebsiteResourceItem
-              key={resource.id}
-              resource={resource}
-              onOpen={onOpenResource}
-              onEdit={
-                onEditResource
-                  ? currentResource =>
-                      onEditResource(collection, currentResource)
-                  : undefined
-              }
-              onDelete={
-                onDeleteResource
-                  ? currentResource =>
-                      onDeleteResource(collection, currentResource)
-                  : undefined
-              }
-            />
-          ))}
-        </ul>
+        {collection.resources.length > 0 && (
+          <div className="relative">
+            <ul className="scroll-slim max-h-80 space-y-2 overflow-y-auto pr-1">
+              {collection.resources.map(resource => (
+                <WebsiteResourceItem
+                  key={resource.id}
+                  resource={resource}
+                  onOpen={onOpenResource}
+                  onEdit={
+                    onEditResource
+                      ? currentResource =>
+                          onEditResource(collection, currentResource)
+                      : undefined
+                  }
+                  onDelete={
+                    onDeleteResource
+                      ? currentResource =>
+                          onDeleteResource(collection, currentResource)
+                      : undefined
+                  }
+                />
+              ))}
+            </ul>
+
+            {collection.resources.length > VISIBLE_RESOURCE_ROWS && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 bottom-0 flex h-9 items-end justify-center bg-gradient-to-t from-card to-transparent"
+              >
+                <ChevronDown className="mb-0.5 size-4 text-muted-foreground motion-safe:animate-bounce" />
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
