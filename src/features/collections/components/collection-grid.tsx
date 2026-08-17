@@ -11,7 +11,6 @@ import {
   rectSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { useCollectionDrag } from '../hooks/use-collection-drag'
 import { useResourceDrag } from '../hooks/use-resource-drag'
@@ -120,7 +119,7 @@ export function CollectionGrid({
     return closestCenter({ ...args, droppableContainers: sameKindContainers })
   }
 
-  const cards = renderedCollections.map(collection => (
+  const renderCard = (collection: Collection) => (
     <CollectionCard
       key={collection.id}
       collection={collection}
@@ -140,12 +139,12 @@ export function CollectionGrid({
         collection.id === collectionDrag.highlightedCollectionId
       }
     />
-  ))
+  )
 
   if (!isAnyDragEnabled) {
     return (
       <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {cards}
+        {renderedCollections.map(renderCard)}
       </div>
     )
   }
@@ -195,15 +194,7 @@ export function CollectionGrid({
         strategy={rectSortingStrategy}
       >
         <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {renderedCollections.map((collection, index) => (
-            <SortableContext
-              key={collection.id}
-              items={collection.resources.map(resource => resource.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {cards[index]}
-            </SortableContext>
-          ))}
+          {renderedCollections.map(renderCard)}
         </div>
       </SortableContext>
     </DndContext>

@@ -1,5 +1,9 @@
 import { useDroppable } from '@dnd-kit/core'
-import { useSortable } from '@dnd-kit/sortable'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
   ChevronDown,
@@ -240,29 +244,34 @@ export function CollectionCard({
 
         {collection.resources.length > 0 && (
           <div className="relative">
-            <ul className="scroll-slim max-h-80 space-y-2 overflow-y-auto pr-1">
-              {collection.resources.map(resource => (
-                <WebsiteResourceItem
-                  key={resource.id}
-                  resource={resource}
-                  onOpen={onOpenResource}
-                  onEdit={
-                    onEditResource
-                      ? currentResource =>
-                          onEditResource(collection, currentResource)
-                      : undefined
-                  }
-                  onDelete={
-                    onDeleteResource
-                      ? currentResource =>
-                          onDeleteResource(collection, currentResource)
-                      : undefined
-                  }
-                  isReorderable={isDragEnabled}
-                  isHighlighted={resource.id === highlightedResourceId}
-                />
-              ))}
-            </ul>
+            <SortableContext
+              items={collection.resources.map(resource => resource.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="scroll-slim max-h-80 space-y-2 overflow-y-auto pr-1">
+                {collection.resources.map(resource => (
+                  <WebsiteResourceItem
+                    key={resource.id}
+                    resource={resource}
+                    onOpen={onOpenResource}
+                    onEdit={
+                      onEditResource
+                        ? currentResource =>
+                            onEditResource(collection, currentResource)
+                        : undefined
+                    }
+                    onDelete={
+                      onDeleteResource
+                        ? currentResource =>
+                            onDeleteResource(collection, currentResource)
+                        : undefined
+                    }
+                    isReorderable={isDragEnabled}
+                    isHighlighted={resource.id === highlightedResourceId}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
 
             {collection.resources.length > VISIBLE_RESOURCE_ROWS && (
               <div
