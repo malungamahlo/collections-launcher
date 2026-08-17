@@ -12,6 +12,7 @@ import { NoSearchResultsEmptyState } from '@app/features/collections/components/
 import { WebsiteResourceFormDialog } from '@app/features/collections/components/website-resource-form-dialog'
 import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/sample-collections'
 import { useCollectionManagement } from '@app/features/collections/hooks/use-collection-management'
+import { useCollectionReorder } from '@app/features/collections/hooks/use-collection-reorder'
 import { useCollectionSearch } from '@app/features/collections/hooks/use-collection-search'
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
 import { useResourceMove } from '@app/features/collections/hooks/use-resource-move'
@@ -44,6 +45,10 @@ function App() {
     save: storedCollections.save,
   })
   const resourceMove = useResourceMove({
+    state: storedCollections.state,
+    save: storedCollections.save,
+  })
+  const collectionReorder = useCollectionReorder({
     state: storedCollections.state,
     save: storedCollections.save,
   })
@@ -207,6 +212,12 @@ function App() {
                           resourceId,
                           targetIndex,
                         )
+                }
+                onReorderCollections={
+                  isDevelopmentPreview || search.query.trim()
+                    ? undefined
+                    : orderedCollectionIds =>
+                        void collectionReorder.reorder(orderedCollectionIds)
                 }
               />
             </div>

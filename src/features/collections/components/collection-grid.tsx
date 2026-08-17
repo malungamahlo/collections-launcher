@@ -5,12 +5,15 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
 } from '@dnd-kit/core'
 import {
+  rectSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
+import { useCollectionDrag } from '../hooks/use-collection-drag'
 import { useResourceDrag } from '../hooks/use-resource-drag'
 import type {
   Collection,
@@ -45,14 +48,19 @@ interface CollectionGridProps {
     resourceId: ResourceId,
     targetIndex: number,
   ) => void
+  readonly onReorderCollections?: (
+    orderedCollectionIds: readonly CollectionId[],
+  ) => void
 }
 
 const noop = () => undefined
 
 /**
  * Arranges collection cards across responsive dashboard columns and, when
- * dragging is enabled, coordinates reordering and moving resources between
- * cards through a single grid-wide drag context.
+ * dragging is enabled, coordinates reordering the cards themselves and
+ * reordering or moving resources between cards through a single shared
+ * drag context. A dragged item's ID space (a collection vs. a resource)
+ * decides which behavior a given drag triggers.
  */
 export function CollectionGrid({
   collections,
@@ -65,23 +73,52 @@ export function CollectionGrid({
   onDeleteResource,
   onReorderResources,
   onMoveResource,
+  onReorderCollections,
 }: CollectionGridProps) {
-  const isDragEnabled = Boolean(onReorderResources) && Boolean(onMoveResource)
+  const isResourceDragEnabled =
+    Boolean(onReorderResources) && Boolean(onMoveResource)
+  const isCollectionDragEnabled = Boolean(onReorderCollections)
+  const isAnyDragEnabled = isResourceDragEnabled || isCollectionDragEnabled
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   )
-  const drag = useResourceDrag({
+  const resourceDrag = useResourceDrag({
     collections,
     onReorder: onReorderResources ?? noop,
     onMove: onMoveResource ?? noop,
   })
+  const collectionDrag = useCollectionDrag({
+    collections,
+    onReorder: onReorderCollections ?? noop,
+  })
 
-  const renderedCollections = isDragEnabled
-    ? drag.renderedCollections
+  const renderedCollections = isResourceDragEnabled
+    ? resourceDrag.renderedCollections
     : collections
+
+  /**
+   * Cards and resources share one `DndContext`, so every card and every
+   * resource row is a candidate collision target at once. Restrict
+   * collision checks to targets of the same kind as the active drag —
+   * otherwise a resource drag can report a nearby card as "closest" instead
+   * of another resource, and vice versa.
+   */
+  const collisionDetection: CollisionDetection = args => {
+    const collectionIds = new Set(
+      collections.map(collection => collection.id),
+    )
+    const isCollectionDrag = collectionIds.has(String(args.active.id))
+    const sameKindContainers = args.droppableContainers.filter(container => {
+      const isCollectionContainer = collectionIds.has(String(container.id))
+      return isCollectionDrag ? isCollectionContainer : !isCollectionContainer
+    })
+
+    return closestCenter({ ...args, droppableContainers: sameKindContainers })
+  }
 
   const cards = renderedCollections.map(collection => (
     <CollectionCard
@@ -94,12 +131,18 @@ export function CollectionGrid({
       onAddResource={onAddResource}
       onEditResource={onEditResource}
       onDeleteResource={onDeleteResource}
-      isDragEnabled={isDragEnabled}
-      highlightedResourceId={isDragEnabled ? drag.highlightedResourceId : undefined}
+      isDragEnabled={isResourceDragEnabled}
+      highlightedResourceId={
+        isResourceDragEnabled ? resourceDrag.highlightedResourceId : undefined
+      }
+      isCollectionDragEnabled={isCollectionDragEnabled}
+      isCollectionHighlighted={
+        collection.id === collectionDrag.highlightedCollectionId
+      }
     />
   ))
 
-  if (!isDragEnabled) {
+  if (!isAnyDragEnabled) {
     return (
       <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
         {cards}
@@ -110,38 +153,59 @@ export function CollectionGrid({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetection}
       onDragOver={event => {
-        const overId = event.over?.id
-        if (typeof event.active.id === 'string') {
-          drag.handleDragOver(
-            event.active.id,
-            typeof overId === 'string' ? overId : undefined,
-          )
+        if (typeof event.active.id !== 'string') {
+          return
+        }
+
+        const activeId = event.active.id
+        const overId =
+          typeof event.over?.id === 'string' ? event.over.id : undefined
+        const isCollectionItem = collections.some(
+          collection => collection.id === activeId,
+        )
+
+        if (!isCollectionItem) {
+          resourceDrag.handleDragOver(activeId, overId)
         }
       }}
       onDragEnd={event => {
-        const overId = event.over?.id
-        if (typeof event.active.id === 'string') {
-          drag.handleDragEnd(
-            event.active.id,
-            typeof overId === 'string' ? overId : undefined,
-          )
+        if (typeof event.active.id !== 'string') {
+          return
+        }
+
+        const activeId = event.active.id
+        const overId =
+          typeof event.over?.id === 'string' ? event.over.id : undefined
+        const isCollectionItem = collections.some(
+          collection => collection.id === activeId,
+        )
+
+        if (isCollectionItem) {
+          collectionDrag.handleDragEnd(activeId, overId)
+        } else {
+          resourceDrag.handleDragEnd(activeId, overId)
         }
       }}
-      onDragCancel={() => drag.cancelDrag()}
+      onDragCancel={() => resourceDrag.cancelDrag()}
     >
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {renderedCollections.map((collection, index) => (
-          <SortableContext
-            key={collection.id}
-            items={collection.resources.map(resource => resource.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {cards[index]}
-          </SortableContext>
-        ))}
-      </div>
+      <SortableContext
+        items={renderedCollections.map(collection => collection.id)}
+        strategy={rectSortingStrategy}
+      >
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {renderedCollections.map((collection, index) => (
+            <SortableContext
+              key={collection.id}
+              items={collection.resources.map(resource => resource.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {cards[index]}
+            </SortableContext>
+          ))}
+        </div>
+      </SortableContext>
     </DndContext>
   )
 }

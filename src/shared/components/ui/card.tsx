@@ -1,20 +1,23 @@
-import type { ComponentProps } from 'react'
+import { forwardRef, type ComponentProps } from 'react'
 import { cn } from '@app/shared/lib/utils'
 
 /**
  * Provides the shared visual surface used by dashboard cards.
  */
-export function Card({ className, ...props }: ComponentProps<'div'>) {
-  return (
-    <div
-      className={cn(
-        'rounded-2xl border border-border bg-card text-card-foreground shadow-sm',
-        className,
-      )}
-      {...props}
-    />
-  )
-}
+export const Card = forwardRef<HTMLDivElement, ComponentProps<'div'>>(
+  function Card({ className, ...props }, ref) {
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          'rounded-2xl border border-border bg-card text-card-foreground shadow-sm',
+          className,
+        )}
+        {...props}
+      />
+    )
+  },
+)
 
 /**
  * Provides consistent spacing for a card heading.

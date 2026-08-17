@@ -8,6 +8,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Button } from '@app/shared/components/ui/button'
+import { usePrefersReducedMotion } from '@app/shared/hooks/use-prefers-reduced-motion'
 import { cn } from '@app/shared/lib/utils'
 import type { WebsiteResource } from '../model/collection.types'
 import { getReadableWebsiteDomain } from '../model/website-url'
@@ -35,16 +36,23 @@ export function WebsiteResourceItem({
   const domain = getReadableWebsiteDomain(resource.url)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: resource.id, disabled: !isReorderable })
+  const prefersReducedMotion = usePrefersReducedMotion()
 
   return (
     <li
       ref={setNodeRef}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition,
+        // The sortable reflow transition is essential drag feedback and always
+        // plays; only the decorative highlight fade is skipped for reduced motion.
+        transition: prefersReducedMotion
+          ? transition
+          : [transition, 'background-color 500ms ease']
+              .filter(Boolean)
+              .join(', '),
       }}
       className={cn(
-        'sortable-item flex items-center gap-1.5 rounded-xl transition-colors duration-500',
+        'flex items-center gap-1.5 rounded-xl',
         isDragging && 'relative z-10 opacity-70',
         isHighlighted && 'bg-accent/15',
       )}

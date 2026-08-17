@@ -80,10 +80,3 @@
     background-color: var(--muted-foreground);
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  /* Drag reflow and the post-reorder highlight fade become instant instead of animated. */
-  .sortable-item {
-    transition: none !important;
-  }
-}

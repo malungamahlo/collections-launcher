@@ -16,6 +16,7 @@ export type CollectionOperationErrorCode =
   | 'DUPLICATE_RESOURCE_URL'
   | 'INVALID_RESOURCE_ORDER'
   | 'SAME_COLLECTION_MOVE'
+  | 'INVALID_COLLECTION_ORDER'
 
 /**
  * Identifies a predictable failure while changing collection state.
@@ -191,6 +192,44 @@ export function updateCollection(
   ensureCollectionResourceIdsAreUnique(state, collection)
 
   return replaceCollection(state, collection)
+}
+
+/**
+ * Reorders the top-level collections list to match the given collection ID
+ * order. The given order must be exactly a permutation of the state's
+ * existing collection IDs. Unlike a resource reorder, this does not change
+ * any collection's `updatedAt` — only the list's order changed, not the
+ * content of any single collection, and the order has no timestamp of its
+ * own to update.
+ */
+export function reorderCollections(
+  state: CollectionsState,
+  orderedCollectionIds: readonly CollectionId[],
+): CollectionsState {
+  const collectionsById = new Map(
+    state.collections.map(collection => [collection.id, collection]),
+  )
+
+  const isValidPermutation =
+    orderedCollectionIds.length === state.collections.length &&
+    orderedCollectionIds.every(collectionId =>
+      collectionsById.has(collectionId),
+    ) &&
+    new Set(orderedCollectionIds).size === orderedCollectionIds.length
+
+  if (!isValidPermutation) {
+    throw new CollectionOperationError(
+      'INVALID_COLLECTION_ORDER',
+      'The given order does not match the existing collections',
+    )
+  }
+
+  return {
+    ...state,
+    collections: orderedCollectionIds.map(
+      collectionId => collectionsById.get(collectionId)!,
+    ),
+  }
 }
 
 /**

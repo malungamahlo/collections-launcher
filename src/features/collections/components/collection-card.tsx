@@ -1,10 +1,13 @@
 import { useDroppable } from '@dnd-kit/core'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   ChevronDown,
   Cloud,
   Code2,
   ExternalLink,
   Folder,
+  GripVertical,
   Pencil,
   Plus,
   Search,
@@ -18,6 +21,7 @@ import {
   CardContent,
   CardHeader,
 } from '@app/shared/components/ui/card'
+import { usePrefersReducedMotion } from '@app/shared/hooks/use-prefers-reduced-motion'
 import { cn } from '@app/shared/lib/utils'
 import type {
   Collection,
@@ -46,6 +50,10 @@ interface CollectionCardProps {
   readonly isDragEnabled?: boolean
   /** The resource, if any, to briefly flash after a drag lands. */
   readonly highlightedResourceId?: ResourceId
+  /** Whether the card itself can be dragged to reorder collections. */
+  readonly isCollectionDragEnabled?: boolean
+  /** Whether this card should briefly flash after a collection reorder. */
+  readonly isCollectionHighlighted?: boolean
 }
 
 const COLLECTION_ICONS: Readonly<Record<string, LucideIcon>> = {
@@ -71,6 +79,8 @@ export function CollectionCard({
   onDeleteResource,
   isDragEnabled = false,
   highlightedResourceId,
+  isCollectionDragEnabled = false,
+  isCollectionHighlighted = false,
 }: CollectionCardProps) {
   const titleId = useId()
   const CollectionIcon = COLLECTION_ICONS[collection.icon ?? ''] ?? Folder
@@ -82,12 +92,36 @@ export function CollectionCard({
       id: emptyCollectionDroppableId(collection.id),
       disabled: !isDragEnabled || collection.resources.length > 0,
     })
+  const {
+    attributes: cardAttributes,
+    listeners: cardListeners,
+    setNodeRef: setCardNodeRef,
+    transform: cardTransform,
+    transition: cardTransition,
+    isDragging: isCardDragging,
+  } = useSortable({ id: collection.id, disabled: !isCollectionDragEnabled })
+  const prefersReducedMotion = usePrefersReducedMotion()
 
   return (
     <Card
+      ref={setCardNodeRef}
       role="article"
       aria-labelledby={titleId}
-      className="flex h-full min-w-0 flex-col overflow-hidden shadow-[0_12px_30px_rgb(17_26_46_/_0.06)]"
+      style={{
+        transform: CSS.Transform.toString(cardTransform),
+        // The sortable reflow transition is essential drag feedback and always
+        // plays; only the decorative highlight fade is skipped for reduced motion.
+        transition: prefersReducedMotion
+          ? cardTransition
+          : [cardTransition, 'background-color 500ms ease']
+              .filter(Boolean)
+              .join(', '),
+      }}
+      className={cn(
+        'flex h-full min-w-0 flex-col overflow-hidden shadow-[0_12px_30px_rgb(17_26_46_/_0.06)]',
+        isCardDragging && 'relative z-10 opacity-70',
+        isCollectionHighlighted && 'bg-accent/10',
+      )}
     >
       <div
         className="h-1.5"
@@ -120,8 +154,20 @@ export function CollectionCard({
             </div>
           </div>
 
-          {(onEdit || onDelete) && (
+          {(isCollectionDragEnabled || onEdit || onDelete) && (
             <div className="flex shrink-0 items-center gap-1">
+              {isCollectionDragEnabled && (
+                <button
+                  type="button"
+                  className="grid size-9 shrink-0 touch-none place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={`Reorder ${collection.name}`}
+                  {...cardAttributes}
+                  {...cardListeners}
+                >
+                  <GripVertical className="size-4" aria-hidden="true" />
+                </button>
+              )}
+
               {onEdit && (
                 <Button
                   variant="secondary"

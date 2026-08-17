@@ -7,6 +7,7 @@ import {
   moveResourceToPosition,
   removeCollection,
   removeResourceFromCollection,
+  reorderCollections,
   reorderResourcesInCollection,
   updateCollection,
   updateResourceInCollection,
@@ -54,6 +55,60 @@ describe('collection operations', () => {
 
     expect(updatedState.collections).toEqual([updatedCollection])
     expect(removedState.collections).toEqual([])
+  })
+
+  it('reorders the top-level collections list without changing any updatedAt', () => {
+    const first = createTestCollection({
+      id: 'collection-1',
+      name: 'First',
+      updatedAt: 1_000,
+    })
+    const second = createTestCollection({
+      id: 'collection-2',
+      name: 'Second',
+      updatedAt: 1_500,
+    })
+    const third = createTestCollection({
+      id: 'collection-3',
+      name: 'Third',
+      updatedAt: 1_800,
+    })
+    const state = createTestState({ collections: [first, second, third] })
+
+    const result = reorderCollections(state, [
+      'collection-3',
+      'collection-1',
+      'collection-2',
+    ])
+
+    expect(result.collections).toEqual([third, first, second])
+    expect(result.collections.map(collection => collection.updatedAt)).toEqual(
+      [1_800, 1_000, 1_500],
+    )
+    expect(state.collections).toEqual([first, second, third])
+  })
+
+  it('rejects a collection reorder that omits or invents a collection ID', () => {
+    const collection = createTestCollection()
+    const state = createTestState({ collections: [collection] })
+
+    expect(() =>
+      reorderCollections(state, ['collection-does-not-exist']),
+    ).toThrowError(
+      expect.objectContaining({ code: 'INVALID_COLLECTION_ORDER' }),
+    )
+  })
+
+  it('rejects a collection reorder with a duplicated collection ID', () => {
+    const first = createTestCollection({ id: 'collection-1' })
+    const second = createTestCollection({ id: 'collection-2', name: 'Second' })
+    const state = createTestState({ collections: [first, second] })
+
+    expect(() =>
+      reorderCollections(state, ['collection-1', 'collection-1']),
+    ).toThrowError(
+      expect.objectContaining({ code: 'INVALID_COLLECTION_ORDER' }),
+    )
   })
 
   it('adds a resource and updates its parent timestamp', () => {
