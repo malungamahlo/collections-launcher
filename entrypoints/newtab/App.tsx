@@ -14,6 +14,7 @@ import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/
 import { useCollectionManagement } from '@app/features/collections/hooks/use-collection-management'
 import { useCollectionSearch } from '@app/features/collections/hooks/use-collection-search'
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
+import { useResourceReorder } from '@app/features/collections/hooks/use-resource-reorder'
 import { useWebsiteResourceManagement } from '@app/features/collections/hooks/use-website-resource-management'
 import type {
   Collection,
@@ -34,6 +35,10 @@ function App() {
     save: storedCollections.save,
   })
   const resourceManagement = useWebsiteResourceManagement({
+    state: storedCollections.state,
+    save: storedCollections.save,
+  })
+  const resourceReorder = useResourceReorder({
     state: storedCollections.state,
     save: storedCollections.save,
   })
@@ -177,6 +182,15 @@ function App() {
                   isDevelopmentPreview
                     ? undefined
                     : resourceManagement.requestDelete
+                }
+                onReorderResources={
+                  isDevelopmentPreview || search.query.trim()
+                    ? undefined
+                    : (collection, orderedResourceIds) =>
+                        void resourceReorder.reorder(
+                          collection,
+                          orderedResourceIds,
+                        )
                 }
               />
             </div>

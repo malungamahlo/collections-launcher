@@ -1,5 +1,14 @@
-import { ExternalLink, Globe2, Pencil, Trash2 } from 'lucide-react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
+  ExternalLink,
+  GripVertical,
+  Globe2,
+  Pencil,
+  Trash2,
+} from 'lucide-react'
 import { Button } from '@app/shared/components/ui/button'
+import { cn } from '@app/shared/lib/utils'
 import type { WebsiteResource } from '../model/collection.types'
 import { getReadableWebsiteDomain } from '../model/website-url'
 
@@ -8,6 +17,8 @@ interface WebsiteResourceItemProps {
   readonly onOpen: (resource: WebsiteResource) => void
   readonly onEdit?: (resource: WebsiteResource) => void
   readonly onDelete?: (resource: WebsiteResource) => void
+  readonly isReorderable?: boolean
+  readonly isHighlighted?: boolean
 }
 
 /**
@@ -18,11 +29,38 @@ export function WebsiteResourceItem({
   onOpen,
   onEdit,
   onDelete,
+  isReorderable = false,
+  isHighlighted = false,
 }: WebsiteResourceItemProps) {
   const domain = getReadableWebsiteDomain(resource.url)
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: resource.id, disabled: !isReorderable })
 
   return (
-    <li className="flex items-center gap-1.5">
+    <li
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={cn(
+        'sortable-item flex items-center gap-1.5 rounded-xl transition-colors duration-500',
+        isDragging && 'relative z-10 opacity-70',
+        isHighlighted && 'bg-accent/15',
+      )}
+    >
+      {isReorderable && (
+        <button
+          type="button"
+          className="grid size-9 shrink-0 touch-none place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`Reorder ${resource.name}`}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="size-4" aria-hidden="true" />
+        </button>
+      )}
+
       <button
         type="button"
         onClick={() => onOpen(resource)}

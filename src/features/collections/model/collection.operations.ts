@@ -14,6 +14,7 @@ export type CollectionOperationErrorCode =
   | 'DUPLICATE_COLLECTION_ID'
   | 'DUPLICATE_RESOURCE_ID'
   | 'DUPLICATE_RESOURCE_URL'
+  | 'INVALID_RESOURCE_ORDER'
 
 /**
  * Identifies a predictable failure while changing collection state.
@@ -266,6 +267,43 @@ export function removeResourceFromCollection(
     ...collection,
     resources: collection.resources.filter(
       resource => resource.id !== resourceId,
+    ),
+    updatedAt: timestamp,
+  })
+}
+
+/**
+ * Reorders a collection's resources to match the given resource ID order
+ * and updates the parent collection timestamp. The given order must be
+ * exactly a permutation of the collection's existing resource IDs.
+ */
+export function reorderResourcesInCollection(
+  state: CollectionsState,
+  collectionId: CollectionId,
+  orderedResourceIds: readonly ResourceId[],
+  timestamp: Timestamp,
+): CollectionsState {
+  const collection = findCollection(state, collectionId)
+  const resourcesById = new Map(
+    collection.resources.map(resource => [resource.id, resource]),
+  )
+
+  const isValidPermutation =
+    orderedResourceIds.length === collection.resources.length &&
+    orderedResourceIds.every(resourceId => resourcesById.has(resourceId)) &&
+    new Set(orderedResourceIds).size === orderedResourceIds.length
+
+  if (!isValidPermutation) {
+    throw new CollectionOperationError(
+      'INVALID_RESOURCE_ORDER',
+      `The given order does not match the resources in collection "${collectionId}"`,
+    )
+  }
+
+  return replaceCollection(state, {
+    ...collection,
+    resources: orderedResourceIds.map(
+      resourceId => resourcesById.get(resourceId)!,
     ),
     updatedAt: timestamp,
   })

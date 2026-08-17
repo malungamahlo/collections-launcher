@@ -1,4 +1,8 @@
-import type { Collection, WebsiteResource } from '../model/collection.types'
+import type {
+  Collection,
+  ResourceId,
+  WebsiteResource,
+} from '../model/collection.types'
 import { CollectionCard } from './collection-card'
 
 interface CollectionGridProps {
@@ -16,6 +20,10 @@ interface CollectionGridProps {
     collection: Collection,
     resource: WebsiteResource,
   ) => void
+  readonly onReorderResources?: (
+    collection: Collection,
+    orderedResourceIds: readonly ResourceId[],
+  ) => void
 }
 
 /**
@@ -30,6 +38,7 @@ export function CollectionGrid({
   onAddResource,
   onEditResource,
   onDeleteResource,
+  onReorderResources,
 }: CollectionGridProps) {
   return (
     <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -44,6 +53,7 @@ export function CollectionGrid({
           onAddResource={onAddResource}
           onEditResource={onEditResource}
           onDeleteResource={onDeleteResource}
+          onReorderResources={onReorderResources}
         />
       ))}
     </div>

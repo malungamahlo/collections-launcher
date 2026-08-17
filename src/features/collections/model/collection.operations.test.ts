@@ -6,6 +6,7 @@ import {
   moveResource,
   removeCollection,
   removeResourceFromCollection,
+  reorderResourcesInCollection,
   updateCollection,
   updateResourceInCollection,
 } from './collection.operations'
@@ -201,6 +202,74 @@ describe('collection operations', () => {
       moveResource(state, source.id, target.id, resource.id, 2_000),
     ).toThrowError(
       expect.objectContaining({ code: 'DUPLICATE_RESOURCE_URL' }),
+    )
+  })
+
+  it('reorders resources and updates the parent timestamp', () => {
+    const first = createTestWebsiteResource({ id: 'resource-1' })
+    const second = createTestWebsiteResource({
+      id: 'resource-2',
+      name: 'Second',
+      url: 'https://second.example.com/',
+    })
+    const third = createTestWebsiteResource({
+      id: 'resource-3',
+      name: 'Third',
+      url: 'https://third.example.com/',
+    })
+    const collection = createTestCollection({
+      resources: [first, second, third],
+    })
+    const state = createTestState({ collections: [collection] })
+
+    const result = reorderResourcesInCollection(
+      state,
+      collection.id,
+      ['resource-3', 'resource-1', 'resource-2'],
+      2_000,
+    )
+
+    expect(result.collections[0]?.resources).toEqual([third, first, second])
+    expect(result.collections[0]?.updatedAt).toBe(2_000)
+    expect(collection.resources).toEqual([first, second, third])
+  })
+
+  it('rejects a reorder that omits or invents a resource ID', () => {
+    const resource = createTestWebsiteResource()
+    const collection = createTestCollection({ resources: [resource] })
+    const state = createTestState({ collections: [collection] })
+
+    expect(() =>
+      reorderResourcesInCollection(
+        state,
+        collection.id,
+        ['resource-does-not-exist'],
+        2_000,
+      ),
+    ).toThrowError(
+      expect.objectContaining({ code: 'INVALID_RESOURCE_ORDER' }),
+    )
+  })
+
+  it('rejects a reorder with a duplicated resource ID', () => {
+    const first = createTestWebsiteResource({ id: 'resource-1' })
+    const second = createTestWebsiteResource({
+      id: 'resource-2',
+      name: 'Second',
+      url: 'https://second.example.com/',
+    })
+    const collection = createTestCollection({ resources: [first, second] })
+    const state = createTestState({ collections: [collection] })
+
+    expect(() =>
+      reorderResourcesInCollection(
+        state,
+        collection.id,
+        ['resource-1', 'resource-1'],
+        2_000,
+      ),
+    ).toThrowError(
+      expect.objectContaining({ code: 'INVALID_RESOURCE_ORDER' }),
     )
   })
 

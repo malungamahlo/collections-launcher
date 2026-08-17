@@ -1,4 +1,19 @@
 import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
   ChevronDown,
   Cloud,
   Code2,
@@ -10,14 +25,18 @@ import {
   Trash2,
   type LucideIcon,
 } from 'lucide-react'
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import {
   Card,
   CardContent,
   CardHeader,
 } from '@app/shared/components/ui/card'
-import type { Collection, WebsiteResource } from '../model/collection.types'
+import type {
+  Collection,
+  ResourceId,
+  WebsiteResource,
+} from '../model/collection.types'
 import { WebsiteResourceItem } from './website-resource-item'
 
 interface CollectionCardProps {
@@ -35,7 +54,14 @@ interface CollectionCardProps {
     collection: Collection,
     resource: WebsiteResource,
   ) => void
+  readonly onReorderResources?: (
+    collection: Collection,
+    orderedResourceIds: readonly ResourceId[],
+  ) => void
 }
+
+/** How long a just-reordered row stays highlighted. */
+const REORDER_HIGHLIGHT_MS = 900
 
 const COLLECTION_ICONS: Readonly<Record<string, LucideIcon>> = {
   cloud: Cloud,
@@ -58,12 +84,52 @@ export function CollectionCard({
   onAddResource,
   onEditResource,
   onDeleteResource,
+  onReorderResources,
 }: CollectionCardProps) {
   const titleId = useId()
   const CollectionIcon = COLLECTION_ICONS[collection.icon ?? ''] ?? Folder
   const resourceCount = collection.resources.length
   const resourceLabel =
     resourceCount === 1 ? '1 resource' : `${resourceCount} resources`
+  const isReorderable = Boolean(onReorderResources)
+  const [highlightedResourceId, setHighlightedResourceId] =
+    useState<ResourceId>()
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+
+  /** Persists a completed drag as the new resource order and flashes the moved row. */
+  function handleResourceDragEnd(event: DragEndEvent): void {
+    const { active, over } = event
+
+    if (
+      !onReorderResources ||
+      !over ||
+      active.id === over.id ||
+      typeof active.id !== 'string' ||
+      typeof over.id !== 'string'
+    ) {
+      return
+    }
+
+    const resourceIds = collection.resources.map(resource => resource.id)
+    const oldIndex = resourceIds.indexOf(active.id)
+    const newIndex = resourceIds.indexOf(over.id)
+
+    if (oldIndex === -1 || newIndex === -1) {
+      return
+    }
+
+    onReorderResources(collection, arrayMove(resourceIds, oldIndex, newIndex))
+    setHighlightedResourceId(active.id)
+    window.setTimeout(
+      () => setHighlightedResourceId(undefined),
+      REORDER_HIGHLIGHT_MS,
+    )
+  }
 
   return (
     <Card
@@ -170,27 +236,40 @@ export function CollectionCard({
 
         {collection.resources.length > 0 && (
           <div className="relative">
-            <ul className="scroll-slim max-h-80 space-y-2 overflow-y-auto pr-1">
-              {collection.resources.map(resource => (
-                <WebsiteResourceItem
-                  key={resource.id}
-                  resource={resource}
-                  onOpen={onOpenResource}
-                  onEdit={
-                    onEditResource
-                      ? currentResource =>
-                          onEditResource(collection, currentResource)
-                      : undefined
-                  }
-                  onDelete={
-                    onDeleteResource
-                      ? currentResource =>
-                          onDeleteResource(collection, currentResource)
-                      : undefined
-                  }
-                />
-              ))}
-            </ul>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleResourceDragEnd}
+            >
+              <SortableContext
+                items={collection.resources.map(resource => resource.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <ul className="scroll-slim max-h-80 space-y-2 overflow-y-auto pr-1">
+                  {collection.resources.map(resource => (
+                    <WebsiteResourceItem
+                      key={resource.id}
+                      resource={resource}
+                      onOpen={onOpenResource}
+                      onEdit={
+                        onEditResource
+                          ? currentResource =>
+                              onEditResource(collection, currentResource)
+                          : undefined
+                      }
+                      onDelete={
+                        onDeleteResource
+                          ? currentResource =>
+                              onDeleteResource(collection, currentResource)
+                          : undefined
+                      }
+                      isReorderable={isReorderable}
+                      isHighlighted={resource.id === highlightedResourceId}
+                    />
+                  ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
 
             {collection.resources.length > VISIBLE_RESOURCE_ROWS && (
               <div
