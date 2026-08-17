@@ -15,6 +15,7 @@ export type CollectionOperationErrorCode =
   | 'DUPLICATE_RESOURCE_ID'
   | 'DUPLICATE_RESOURCE_URL'
   | 'INVALID_RESOURCE_ORDER'
+  | 'SAME_COLLECTION_MOVE'
 
 /**
  * Identifies a predictable failure while changing collection state.
@@ -305,6 +306,56 @@ export function reorderResourcesInCollection(
     resources: orderedResourceIds.map(
       resourceId => resourcesById.get(resourceId)!,
     ),
+    updatedAt: timestamp,
+  })
+}
+
+/**
+ * Moves a resource into a different collection at a specific position,
+ * removing it from its source collection, and updates both collections'
+ * timestamps. An out-of-range index is clamped to the target's bounds.
+ * Use `reorderResourcesInCollection` for a move within one collection.
+ */
+export function moveResourceToPosition(
+  state: CollectionsState,
+  sourceCollectionId: CollectionId,
+  targetCollectionId: CollectionId,
+  resourceId: ResourceId,
+  targetIndex: number,
+  timestamp: Timestamp,
+): CollectionsState {
+  if (sourceCollectionId === targetCollectionId) {
+    throw new CollectionOperationError(
+      'SAME_COLLECTION_MOVE',
+      'Use reorderResourcesInCollection to move a resource within one collection',
+    )
+  }
+
+  const sourceCollection = findCollection(state, sourceCollectionId)
+  const targetCollection = findCollection(state, targetCollectionId)
+  const resource = findResource(sourceCollection, resourceId)
+  ensureUniqueResourceUrl(targetCollection, resource)
+
+  const stateWithoutResource = removeResourceFromCollection(
+    state,
+    sourceCollectionId,
+    resourceId,
+    timestamp,
+  )
+  const updatedTargetCollection = findCollection(
+    stateWithoutResource,
+    targetCollectionId,
+  )
+  const nextResources = [...updatedTargetCollection.resources]
+  const clampedIndex = Math.max(
+    0,
+    Math.min(targetIndex, nextResources.length),
+  )
+  nextResources.splice(clampedIndex, 0, resource)
+
+  return replaceCollection(stateWithoutResource, {
+    ...updatedTargetCollection,
+    resources: nextResources,
     updatedAt: timestamp,
   })
 }

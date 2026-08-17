@@ -31,7 +31,7 @@ describe('useResourceReorder', () => {
     const { result } = renderHook(() => useResourceReorder({ state, save }))
 
     await act(async () =>
-      result.current.reorder(collection, ['resource-2', 'resource-1']),
+      result.current.reorder(collection.id, ['resource-2', 'resource-1']),
     )
 
     expect(save).toHaveBeenCalledOnce()
@@ -57,7 +57,7 @@ describe('useResourceReorder', () => {
     const { result } = renderHook(() => useResourceReorder({ state, save }))
 
     await expect(
-      result.current.reorder(collection, ['does-not-exist']),
+      result.current.reorder(collection.id, ['does-not-exist']),
     ).resolves.toBeUndefined()
 
     expect(consoleError).toHaveBeenCalled()

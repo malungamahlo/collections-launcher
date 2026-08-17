@@ -1,6 +1,6 @@
 import { reorderResourcesInCollection } from '../model/collection.operations'
 import type {
-  Collection,
+  CollectionId,
   CollectionsState,
   ResourceId,
 } from '../model/collection.types'
@@ -13,13 +13,13 @@ interface UseResourceReorderOptions {
 /** Persists a drag-and-drop reorder of a collection's resources. */
 export function useResourceReorder({ state, save }: UseResourceReorderOptions) {
   async function reorder(
-    collection: Collection,
+    collectionId: CollectionId,
     orderedResourceIds: readonly ResourceId[],
   ): Promise<void> {
     try {
       const nextState = reorderResourcesInCollection(
         state,
-        collection.id,
+        collectionId,
         orderedResourceIds,
         Date.now(),
       )
@@ -27,7 +27,7 @@ export function useResourceReorder({ state, save }: UseResourceReorderOptions) {
       await save(nextState)
     } catch (error) {
       console.error(
-        `Could not reorder resources in collection ${collection.id}`,
+        `Could not reorder resources in collection ${collectionId}`,
         error,
       )
     }

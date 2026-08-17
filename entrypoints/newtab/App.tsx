@@ -14,6 +14,7 @@ import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/
 import { useCollectionManagement } from '@app/features/collections/hooks/use-collection-management'
 import { useCollectionSearch } from '@app/features/collections/hooks/use-collection-search'
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
+import { useResourceMove } from '@app/features/collections/hooks/use-resource-move'
 import { useResourceReorder } from '@app/features/collections/hooks/use-resource-reorder'
 import { useWebsiteResourceManagement } from '@app/features/collections/hooks/use-website-resource-management'
 import type {
@@ -39,6 +40,10 @@ function App() {
     save: storedCollections.save,
   })
   const resourceReorder = useResourceReorder({
+    state: storedCollections.state,
+    save: storedCollections.save,
+  })
+  const resourceMove = useResourceMove({
     state: storedCollections.state,
     save: storedCollections.save,
   })
@@ -186,10 +191,21 @@ function App() {
                 onReorderResources={
                   isDevelopmentPreview || search.query.trim()
                     ? undefined
-                    : (collection, orderedResourceIds) =>
+                    : (collectionId, orderedResourceIds) =>
                         void resourceReorder.reorder(
-                          collection,
+                          collectionId,
                           orderedResourceIds,
+                        )
+                }
+                onMoveResource={
+                  isDevelopmentPreview || search.query.trim()
+                    ? undefined
+                    : (sourceCollectionId, targetCollectionId, resourceId, targetIndex) =>
+                        void resourceMove.move(
+                          sourceCollectionId,
+                          targetCollectionId,
+                          resourceId,
+                          targetIndex,
                         )
                 }
               />

@@ -4,6 +4,7 @@ import {
   addResourceToCollection,
   CollectionOperationError,
   moveResource,
+  moveResourceToPosition,
   removeCollection,
   removeResourceFromCollection,
   reorderResourcesInCollection,
@@ -270,6 +271,108 @@ describe('collection operations', () => {
       ),
     ).toThrowError(
       expect.objectContaining({ code: 'INVALID_RESOURCE_ORDER' }),
+    )
+  })
+
+  it('moves a resource into another collection at a specific position', () => {
+    const moved = createTestWebsiteResource({ id: 'resource-moved' })
+    const source = createTestCollection({ resources: [moved] })
+    const first = createTestWebsiteResource({
+      id: 'resource-1',
+      name: 'First',
+      url: 'https://first.example.com/',
+    })
+    const second = createTestWebsiteResource({
+      id: 'resource-2',
+      name: 'Second',
+      url: 'https://second.example.com/',
+    })
+    const target = createTestCollection({
+      id: 'collection-2',
+      name: 'Research',
+      resources: [first, second],
+    })
+    const state = createTestState({ collections: [source, target] })
+
+    const result = moveResourceToPosition(
+      state,
+      source.id,
+      target.id,
+      moved.id,
+      1,
+      2_000,
+    )
+
+    expect(result.collections[0]?.resources).toEqual([])
+    expect(result.collections[0]?.updatedAt).toBe(2_000)
+    expect(result.collections[1]?.resources).toEqual([first, moved, second])
+    expect(result.collections[1]?.updatedAt).toBe(2_000)
+    expect(source.resources).toEqual([moved])
+    expect(target.resources).toEqual([first, second])
+  })
+
+  it('clamps an out-of-range target index to the end of the target collection', () => {
+    const moved = createTestWebsiteResource({ id: 'resource-moved' })
+    const source = createTestCollection({ resources: [moved] })
+    const existing = createTestWebsiteResource({
+      id: 'resource-1',
+      name: 'Existing',
+      url: 'https://existing.example.com/',
+    })
+    const target = createTestCollection({
+      id: 'collection-2',
+      name: 'Research',
+      resources: [existing],
+    })
+    const state = createTestState({ collections: [source, target] })
+
+    const result = moveResourceToPosition(
+      state,
+      source.id,
+      target.id,
+      moved.id,
+      99,
+      2_000,
+    )
+
+    expect(result.collections[1]?.resources).toEqual([existing, moved])
+  })
+
+  it('rejects moving a URL into a collection that already contains it', () => {
+    const moved = createTestWebsiteResource({ id: 'resource-moved' })
+    const source = createTestCollection({ resources: [moved] })
+    const target = createTestCollection({
+      id: 'collection-2',
+      name: 'Research',
+      resources: [
+        createTestWebsiteResource({ id: 'resource-2', name: 'Duplicate' }),
+      ],
+    })
+    const state = createTestState({ collections: [source, target] })
+
+    expect(() =>
+      moveResourceToPosition(state, source.id, target.id, moved.id, 0, 2_000),
+    ).toThrowError(
+      expect.objectContaining({ code: 'DUPLICATE_RESOURCE_URL' }),
+    )
+  })
+
+  it('rejects a move within the same collection', () => {
+    const resource = createTestWebsiteResource()
+    const collection = createTestCollection({ resources: [resource] })
+    const state = createTestState({ collections: [collection] })
+
+    expect(() =>
+      moveResourceToPosition(
+        state,
+        collection.id,
+        collection.id,
+        resource.id,
+        0,
+        2_000,
+      ),
+    ).toThrowError(
+      expect.objectContaining({ code: 'SAME_COLLECTION_MOVE' }),
     )
   })
 
