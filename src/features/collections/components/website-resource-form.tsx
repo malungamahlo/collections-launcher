@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type FormEvent } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { Input } from '@app/shared/components/ui/input'
+import { Label } from '@app/shared/components/ui/label'
 import { Select } from '@app/shared/components/ui/select'
 import type { Collection } from '../model/collection.types'
 import type { WebsiteResourceFormValues } from './website-resource-form.types'
@@ -59,12 +60,7 @@ export function WebsiteResourceForm({
   return (
     <form className="space-y-5" onSubmit={handleSubmit} noValidate>
       <div className="space-y-2">
-        <label
-          className="text-sm font-medium text-card-foreground"
-          htmlFor={nameId}
-        >
-          Website name
-        </label>
+        <Label htmlFor={nameId}>Website name</Label>
         <Input
           ref={nameInputRef}
           id={nameId}
@@ -89,12 +85,7 @@ export function WebsiteResourceForm({
       </div>
 
       <div className="space-y-2">
-        <label
-          className="text-sm font-medium text-card-foreground"
-          htmlFor={urlId}
-        >
-          Website URL
-        </label>
+        <Label htmlFor={urlId}>Website URL</Label>
         <Input
           ref={urlInputRef}
           id={urlId}
@@ -123,12 +114,7 @@ export function WebsiteResourceForm({
       </div>
 
       <div className="space-y-2">
-        <label
-          className="text-sm font-medium text-card-foreground"
-          htmlFor={collectionId}
-        >
-          Collection
-        </label>
+        <Label htmlFor={collectionId}>Collection</Label>
         <Select
           id={collectionId}
           name="collectionId"

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type FormEvent } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { Input } from '@app/shared/components/ui/input'
+import { Label } from '@app/shared/components/ui/label'
 import { Select } from '@app/shared/components/ui/select'
 import { Textarea } from '@app/shared/components/ui/textarea'
 import type { CollectionFormValues } from './collection-form.types'
@@ -52,12 +53,7 @@ export function CollectionForm({
   return (
     <form className="space-y-5" onSubmit={handleSubmit} noValidate>
       <div className="space-y-2">
-        <label
-          className="text-sm font-medium text-card-foreground"
-          htmlFor={nameId}
-        >
-          Collection name
-        </label>
+        <Label htmlFor={nameId}>Collection name</Label>
         <Input
           ref={nameInputRef}
           id={nameId}
@@ -82,12 +78,7 @@ export function CollectionForm({
       </div>
 
       <div className="space-y-2">
-        <label
-          className="text-sm font-medium text-card-foreground"
-          htmlFor={descriptionId}
-        >
-          Description
-        </label>
+        <Label htmlFor={descriptionId}>Description</Label>
         <Textarea
           id={descriptionId}
           name="description"
@@ -103,14 +94,9 @@ export function CollectionForm({
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
-        <div className="space-y-2">
-          <label
-            className="text-sm font-medium text-card-foreground"
-            htmlFor={iconId}
-          >
-            Icon
-          </label>
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="w-full space-y-2 sm:w-56">
+          <Label htmlFor={iconId}>Icon</Label>
           <Select
             id={iconId}
             name="icon"
@@ -128,12 +114,7 @@ export function CollectionForm({
         </div>
 
         <div className="space-y-2">
-          <label
-            className="text-sm font-medium text-card-foreground"
-            htmlFor={colorId}
-          >
-            Color
-          </label>
+          <Label htmlFor={colorId}>Color</Label>
           <Input
             id={colorId}
             name="color"

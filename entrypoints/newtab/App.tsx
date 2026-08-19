@@ -167,7 +167,11 @@ function App() {
             )}
 
           {status === 'ready' && search.filteredCollections.length > 0 && (
-            <div className="scroll-slim min-h-0 flex-1 overflow-y-auto">
+            // Extra bottom clearance (pb-16) so the last row can scroll clear of
+            // Chrome's native "Customize Chrome" bar, which overlaps unthemed NTP
+            // overrides and can't be measured from page JS/CSS. It's a deliberate
+            // overestimate of that bar's approximate ~40-56px height.
+            <div className="scroll-slim min-h-0 flex-1 overflow-y-auto pb-16">
               <CollectionGrid
                 collections={search.filteredCollections}
                 onOpenResource={handleOpenResource}

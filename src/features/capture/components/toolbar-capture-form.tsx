@@ -3,6 +3,7 @@ import { CheckCircle2, FolderPlus, Globe2 } from 'lucide-react'
 import type { Collection } from '@app/features/collections/model/collection.types'
 import { Button } from '@app/shared/components/ui/button'
 import { Input } from '@app/shared/components/ui/input'
+import { Label } from '@app/shared/components/ui/label'
 import { Select } from '@app/shared/components/ui/select'
 import type { ActivePage } from '@app/platform/browser/active-tab.adapter'
 import type { ToolbarCaptureValues } from '../hooks/use-toolbar-capture'
@@ -80,12 +81,7 @@ export function ToolbarCaptureForm({
       </div>
 
       <div className="space-y-2">
-        <label
-          className="text-sm font-medium text-card-foreground"
-          htmlFor={nameId}
-        >
-          Friendly name
-        </label>
+        <Label htmlFor={nameId}>Friendly name</Label>
         <Input
           ref={nameInputRef}
           id={nameId}
@@ -109,12 +105,7 @@ export function ToolbarCaptureForm({
       </div>
 
       <div className="space-y-2">
-        <label
-          className="text-sm font-medium text-card-foreground"
-          htmlFor={destinationId}
-        >
-          Save to collection
-        </label>
+        <Label htmlFor={destinationId}>Save to collection</Label>
         <Select
           id={destinationId}
           name="destination"
@@ -148,13 +139,13 @@ export function ToolbarCaptureForm({
 
       {values.destination === 'new' && (
         <div className="space-y-2 rounded-xl border border-border bg-card p-3">
-          <label
-            className="flex items-center gap-2 text-sm font-medium text-card-foreground"
+          <Label
+            className="flex items-center gap-2"
             htmlFor={newCollectionNameId}
           >
             <FolderPlus className="size-4" aria-hidden="true" />
             New collection name
-          </label>
+          </Label>
           <Input
             id={newCollectionNameId}
             name="newCollectionName"
