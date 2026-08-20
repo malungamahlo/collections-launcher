@@ -90,7 +90,7 @@ export function ToolbarCaptureForm({
           autoComplete="off"
           autoFocus
           required
-          disabled={isSaving}
+          disabled={isSaving || Boolean(successMessage)}
           aria-invalid={nameError ? 'true' : undefined}
           aria-describedby={nameError ? nameErrorId : undefined}
           onChange={event =>
@@ -110,7 +110,7 @@ export function ToolbarCaptureForm({
           id={destinationId}
           name="destination"
           value={destinationValue}
-          disabled={isSaving}
+          disabled={isSaving || Boolean(successMessage)}
           aria-invalid={collectionError ? 'true' : undefined}
           aria-describedby={collectionError ? collectionErrorId : undefined}
           onChange={event => {
@@ -153,7 +153,7 @@ export function ToolbarCaptureForm({
             placeholder="For example, Research"
             autoComplete="off"
             required
-            disabled={isSaving}
+            disabled={isSaving || Boolean(successMessage)}
             aria-invalid={collectionError ? 'true' : undefined}
             aria-describedby={
               collectionError ? collectionErrorId : undefined
