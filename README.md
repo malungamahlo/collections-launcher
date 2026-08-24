@@ -1,77 +1,79 @@
-# React + TypeScript + Vite
+# Collections Launcher
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A Chrome/Chromium browser extension that organizes websites into purpose-based collections and launches them from a custom new-tab dashboard. It's local-first: everything is stored with `chrome.storage.local`, no account is required, and nothing is sent to a server.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **New-tab dashboard** — a fixed-viewport view of all your collections, with an internally-scrolling list per collection so long lists never push other collections out of view.
+- **Toolbar popup capture** — save the page you're currently on into an existing or brand-new collection without leaving it. Reachable entirely by keyboard via `Ctrl+Shift+S` (`Cmd+Shift+S` on Mac), since a pinned toolbar icon can't otherwise be reached by Tab.
+- **Full collection and website management** — create, rename, edit, and delete collections and the websites inside them.
+- **Drag and drop** — reorder the websites within a collection, reorder collections themselves, or drag a website from one collection into another (including one with no websites yet). Fully usable from the keyboard.
+- **Search** — filter by collection name, website name, or domain.
+- **Open all** — launch every website in a collection as tabs in one click.
 
-## React Compiler
+## Installing the extension
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+This extension isn't published to the Chrome Web Store yet, so it's loaded unpacked from a local build.
 
-Note: This will impact Vite dev & build performances.
+1. Download or clone this repository.
+2. Install dependencies and build the production output:
+   ```
+   npm install
+   npm run build
+   ```
+   This produces `.output/chrome-mv3`.
+3. In Chrome or another Chromium-based browser, go to `chrome://extensions`.
+4. Enable **Developer mode** (top-right toggle).
+5. Click **Load unpacked** and select the `.output/chrome-mv3` folder.
+6. Open a new tab — you should see the Collections Launcher dashboard.
 
-## Expanding the ESLint configuration
+### Permissions
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+The extension requests only two permissions:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- `storage` — to save your collections locally.
+- `activeTab` — to read the page you're on only when you invoke the popup.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+It does not request access to your browsing history, bookmarks, or any specific website.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Development
 
 ```
+npm install
+npm run start
+```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+`npm run start` launches a managed Chromium instance with the extension loaded and live-reloading, and keeps local storage across restarts. On Windows, use `npm.cmd` instead of `npm` if your shell blocks the `npm.ps1` script shim.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Other useful scripts:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Command | Purpose |
+| --- | --- |
+| `npm run dev:samples` | Runs the dashboard against deterministic sample data instead of your real stored collections. |
+| `npm run build` | Produces the production build in `.output/chrome-mv3`. |
+| `npm run zip` | Packages the production build into a distributable `.zip`. |
+
+## Testing
 
 ```
+npm test        # run the full unit and component test suite once
+npm run test:watch  # re-run tests on file changes
+npm run lint     # run ESLint
+npm run build    # type-checks the whole project, then produces a production build
+```
+
+Automated tests cover domain logic, storage, and component behavior, but they can't verify manifest or browser integration. Before relying on a build, also load it unpacked (see above) and manually check:
+
+- Creating, editing, reordering, moving, and deleting both collections and websites.
+- Searching by collection name, website name, and domain.
+- Saving the active page from the toolbar popup, including into a brand-new collection and onto a page that can't be saved (like a `chrome://` page).
+- That your data is still there after fully restarting the browser.
+- Every primary workflow using only the keyboard.
+
+## Tech stack
+
+Built with [WXT](https://wxt.dev), React, and TypeScript, styled with Tailwind CSS, with drag-and-drop provided by [dnd-kit](https://dndkit.com).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
