@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+// @vitest-environment happy-dom
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { browser } from 'wxt/browser'
 import { fakeBrowser } from 'wxt/testing/fake-browser'
 import { BrowserTabsAdapter } from './tabs.adapter'
@@ -9,21 +11,25 @@ describe('BrowserTabsAdapter', () => {
     fakeBrowser.reset()
   })
 
-  it('opens a website in an active browser tab', async () => {
-    const createTab = vi
-      .spyOn(browser.tabs, 'create')
-      .mockResolvedValue(undefined)
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('navigates the current tab to the given URL', async () => {
+    const assign = vi
+      .spyOn(window.location, 'assign')
+      .mockImplementation(() => undefined)
     const adapter = new BrowserTabsAdapter()
 
     await adapter.open('https://example.com/')
 
-    expect(createTab).toHaveBeenCalledWith({
-      url: 'https://example.com/',
-      active: true,
-    })
+    expect(assign).toHaveBeenCalledWith('https://example.com/')
   })
 
-  it('opens many websites in order with only the first tab active', async () => {
+  it('opens the rest in the background, then navigates the current tab to the first URL', async () => {
+    const assign = vi
+      .spyOn(window.location, 'assign')
+      .mockImplementation(() => undefined)
     const createTab = vi
       .spyOn(browser.tabs, 'create')
       .mockResolvedValue(undefined)
@@ -34,13 +40,17 @@ describe('BrowserTabsAdapter', () => {
       'https://example.com/two',
     ])
 
-    expect(createTab.mock.calls).toEqual([
-      [{ url: 'https://example.com/one', active: true }],
-      [{ url: 'https://example.com/two', active: false }],
-    ])
+    expect(createTab).toHaveBeenCalledWith({
+      url: 'https://example.com/two',
+      active: false,
+    })
+    expect(assign).toHaveBeenCalledWith('https://example.com/one')
   })
 
-  it('does not create tabs for an empty list', async () => {
+  it('does nothing for an empty list', async () => {
+    const assign = vi
+      .spyOn(window.location, 'assign')
+      .mockImplementation(() => undefined)
     const createTab = vi
       .spyOn(browser.tabs, 'create')
       .mockResolvedValue(undefined)
@@ -48,6 +58,7 @@ describe('BrowserTabsAdapter', () => {
 
     await adapter.openMany([])
 
+    expect(assign).not.toHaveBeenCalled()
     expect(createTab).not.toHaveBeenCalled()
   })
 })
