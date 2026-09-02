@@ -23,10 +23,13 @@ import type {
   WebsiteResource,
 } from '@app/features/collections/model/collection.types'
 import { ChromeLocalCollectionsRepository } from '@app/features/collections/storage/chrome-local-collections.repository'
+import { useExportCollection } from '@app/engine/portability/hooks/use-export-collection'
+import { BrowserFileDownloadAdapter } from '@app/platform/browser/file-download.adapter'
 import { BrowserTabsAdapter } from '@app/platform/browser/tabs.adapter'
 
 const collectionsRepository = new ChromeLocalCollectionsRepository()
 const tabsAdapter = new BrowserTabsAdapter()
+const fileDownloadAdapter = new BrowserFileDownloadAdapter()
 
 function App() {
   const dashboardFallbackFocusRef = useRef<HTMLButtonElement>(null)
@@ -52,6 +55,7 @@ function App() {
     state: storedCollections.state,
     save: storedCollections.save,
   })
+  const exportCollection = useExportCollection(fileDownloadAdapter)
 
   // Preview mode displays deterministic data without writing it to user storage.
   const collections = isDevelopmentPreview
@@ -181,6 +185,11 @@ function App() {
                 }
                 onDeleteCollection={
                   isDevelopmentPreview ? undefined : management.requestDelete
+                }
+                onExportCollection={
+                  isDevelopmentPreview
+                    ? undefined
+                    : exportCollection.exportCollection
                 }
                 onAddResource={
                   isDevelopmentPreview

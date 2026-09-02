@@ -1,7 +1,7 @@
 import type {
   Collection,
   WebsiteResource,
-} from '../../../features/collections/model/collection.types'
+} from '@app/features/collections/model/collection.types'
 
 const TEST_TIMESTAMP = 1_000
 

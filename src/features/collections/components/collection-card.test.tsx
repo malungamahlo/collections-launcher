@@ -27,6 +27,33 @@ function renderCard(resourceCount: number): string {
   )
 }
 
+describe('CollectionCard export action', () => {
+  it('does not render an export control by default', () => {
+    const markup = renderToStaticMarkup(
+      <CollectionCard
+        collection={createTestCollection()}
+        onOpenResource={noop}
+        onOpenAll={noop}
+      />,
+    )
+
+    expect(markup).not.toContain('Export Development')
+  })
+
+  it('renders an export control when onExport is provided', () => {
+    const markup = renderToStaticMarkup(
+      <CollectionCard
+        collection={createTestCollection()}
+        onOpenResource={noop}
+        onOpenAll={noop}
+        onExport={noop}
+      />,
+    )
+
+    expect(markup).toContain('Export Development')
+  })
+})
+
 describe('CollectionCard resource scroll fade', () => {
   it('does not render a scroll fade for a short resource list', () => {
     const markup = renderCard(3)

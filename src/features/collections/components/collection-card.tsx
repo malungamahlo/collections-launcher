@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Cloud,
   Code2,
+  Download,
   ExternalLink,
   Folder,
   GripVertical,
@@ -41,6 +42,7 @@ interface CollectionCardProps {
   readonly onOpenAll: (collection: Collection) => void
   readonly onEdit?: (collection: Collection) => void
   readonly onDelete?: (collection: Collection) => void
+  readonly onExport?: (collection: Collection) => void
   readonly onAddResource?: (collection: Collection) => void
   readonly onEditResource?: (
     collection: Collection,
@@ -78,6 +80,7 @@ export function CollectionCard({
   onOpenAll,
   onEdit,
   onDelete,
+  onExport,
   onAddResource,
   onEditResource,
   onDeleteResource,
@@ -158,7 +161,7 @@ export function CollectionCard({
             </div>
           </div>
 
-          {(isCollectionDragEnabled || onEdit || onDelete) && (
+          {(isCollectionDragEnabled || onEdit || onExport || onDelete) && (
             <div className="flex shrink-0 items-center gap-1">
               {isCollectionDragEnabled && (
                 <button
@@ -181,6 +184,18 @@ export function CollectionCard({
                   onClick={() => onEdit(collection)}
                 >
                   <Pencil className="size-4" aria-hidden="true" />
+                </Button>
+              )}
+
+              {onExport && (
+                <Button
+                  variant="secondary"
+                  className="size-9 px-0 hover:bg-slate-300"
+                  aria-label={`Export ${collection.name}`}
+                  title={`Export ${collection.name}`}
+                  onClick={() => onExport(collection)}
+                >
+                  <Download className="size-4" aria-hidden="true" />
                 </Button>
               )}
 

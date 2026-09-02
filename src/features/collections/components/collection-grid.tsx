@@ -28,6 +28,7 @@ interface CollectionGridProps {
   readonly onOpenAll: (collection: Collection) => void
   readonly onEditCollection?: (collection: Collection) => void
   readonly onDeleteCollection?: (collection: Collection) => void
+  readonly onExportCollection?: (collection: Collection) => void
   readonly onAddResource?: (collection: Collection) => void
   readonly onEditResource?: (
     collection: Collection,
@@ -67,6 +68,7 @@ export function CollectionGrid({
   onOpenAll,
   onEditCollection,
   onDeleteCollection,
+  onExportCollection,
   onAddResource,
   onEditResource,
   onDeleteResource,
@@ -127,6 +129,7 @@ export function CollectionGrid({
       onOpenAll={onOpenAll}
       onEdit={onEditCollection}
       onDelete={onDeleteCollection}
+      onExport={onExportCollection}
       onAddResource={onAddResource}
       onEditResource={onEditResource}
       onDeleteResource={onDeleteResource}

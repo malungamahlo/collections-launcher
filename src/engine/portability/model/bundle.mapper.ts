@@ -1,4 +1,4 @@
-import type { Collection } from '../../../features/collections/model/collection.types'
+import type { Collection } from '@app/features/collections/model/collection.types'
 import {
   BUNDLE_FORMAT,
   BUNDLE_SCHEMA_VERSION,
