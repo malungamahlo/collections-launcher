@@ -180,6 +180,11 @@ function App() {
               onDeleteCollection={
                 isDevelopmentPreview ? undefined : management.requestDelete
               }
+              onExportCollection={
+                isDevelopmentPreview
+                  ? undefined
+                  : exportCollection.exportCollection
+              }
               onAddResource={
                 isDevelopmentPreview ? undefined : resourceManagement.openCreate
               }

@@ -2,6 +2,7 @@ import type {
   Collection,
   WebsiteResource,
 } from '@app/features/collections/model/collection.types'
+import { BUNDLE_FORMAT, BUNDLE_SCHEMA_VERSION } from '../model/bundle.types'
 
 const TEST_TIMESTAMP = 1_000
 
@@ -100,4 +101,40 @@ export function createUnicodeNameTestCollection(
     updatedAt: TEST_TIMESTAMP,
     ...overrides,
   }
+}
+
+/** Overrides accepted by {@link createBundleObject} at the envelope and collection level. */
+export interface BundleObjectOverrides {
+  readonly format?: unknown
+  readonly schemaVersion?: unknown
+  readonly exportedAt?: unknown
+  readonly collection?: Record<string, unknown>
+}
+
+/**
+ * Builds a plain, JSON-serializable object shaped like a valid bundle,
+ * with any envelope or collection field overridable to construct
+ * malformed or hostile variants for import-validation tests.
+ */
+export function createBundleObject(
+  overrides: BundleObjectOverrides = {},
+): Record<string, unknown> {
+  const { collection: collectionOverrides, ...envelopeOverrides } = overrides
+
+  return {
+    format: BUNDLE_FORMAT,
+    schemaVersion: BUNDLE_SCHEMA_VERSION,
+    exportedAt: new Date(TEST_TIMESTAMP).toISOString(),
+    ...envelopeOverrides,
+    collection: {
+      name: 'Development',
+      resources: [{ name: 'GitHub', url: 'https://github.com/' }],
+      ...collectionOverrides,
+    },
+  }
+}
+
+/** Same as {@link createBundleObject}, serialized as the JSON text an import would read. */
+export function createBundleText(overrides?: BundleObjectOverrides): string {
+  return JSON.stringify(createBundleObject(overrides))
 }
