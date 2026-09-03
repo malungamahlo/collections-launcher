@@ -79,17 +79,16 @@ function App() {
   }
 
   return (
-    <main className="flex h-[100dvh] flex-col overflow-hidden bg-background">
-      <div className="mx-auto flex w-full max-w-7xl min-h-0 flex-1 flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
-        <div className="shrink-0">
-          <DashboardHeader isDevelopmentPreview={isDevelopmentPreview} />
-        </div>
+    <main className="flex flex-col bg-background">
+      {/* pb-16 gives the last card row room to scroll clear of Chrome's native
+          "Customize Chrome" bar, which overlaps unthemed NTP overrides and
+          can't be measured from page JS/CSS — a deliberate overestimate of
+          that bar's approximate ~40-56px height. */}
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pt-6 pb-16 sm:px-6 sm:pt-8 lg:px-10 lg:pt-10">
+        <DashboardHeader isDevelopmentPreview={isDevelopmentPreview} />
 
-        <section
-          aria-labelledby="collections-heading"
-          className="flex min-h-0 flex-1 flex-col gap-4"
-        >
-          <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <section aria-labelledby="collections-heading" className="flex flex-col gap-4">
+          <div className="sticky top-0 z-10 -mx-4 flex flex-col gap-4 border-b border-border bg-background px-4 py-4 sm:-mx-6 sm:flex-row sm:items-end sm:justify-between sm:px-6 lg:-mx-10 lg:px-10">
             <div>
               <h2
                 id="collections-heading"
@@ -167,64 +166,54 @@ function App() {
             )}
 
           {status === 'ready' && search.filteredCollections.length > 0 && (
-            // Extra bottom clearance (pb-16) so the last row can scroll clear of
-            // Chrome's native "Customize Chrome" bar, which overlaps unthemed NTP
-            // overrides and can't be measured from page JS/CSS. It's a deliberate
-            // overestimate of that bar's approximate ~40-56px height.
-            <div className="scroll-slim min-h-0 flex-1 overflow-y-auto pb-16">
-              <CollectionGrid
-                collections={search.filteredCollections}
-                onOpenResource={handleOpenResource}
-                onOpenAll={handleOpenAll}
-                onEditCollection={
-                  isDevelopmentPreview ? undefined : management.openEdit
-                }
-                onDeleteCollection={
-                  isDevelopmentPreview ? undefined : management.requestDelete
-                }
-                onAddResource={
-                  isDevelopmentPreview
-                    ? undefined
-                    : resourceManagement.openCreate
-                }
-                onEditResource={
-                  isDevelopmentPreview
-                    ? undefined
-                    : resourceManagement.openEdit
-                }
-                onDeleteResource={
-                  isDevelopmentPreview
-                    ? undefined
-                    : resourceManagement.requestDelete
-                }
-                onReorderResources={
-                  isDevelopmentPreview || search.query.trim()
-                    ? undefined
-                    : (collectionId, orderedResourceIds) =>
-                        void resourceReorder.reorder(
-                          collectionId,
-                          orderedResourceIds,
-                        )
-                }
-                onMoveResource={
-                  isDevelopmentPreview || search.query.trim()
-                    ? undefined
-                    : (sourceCollectionId, targetCollectionId, resourceId, targetIndex) =>
-                        void resourceMove.move(
-                          sourceCollectionId,
-                          targetCollectionId,
-                          resourceId,
-                          targetIndex,
-                        )
-                }
-                onReorderCollections={
-                  isDevelopmentPreview || search.query.trim()
-                    ? undefined
-                    : orderedCollectionIds =>
-                        void collectionReorder.reorder(orderedCollectionIds)
-                }
-              />
-            </div>
+            <CollectionGrid
+              collections={search.filteredCollections}
+              onOpenResource={handleOpenResource}
+              onOpenAll={handleOpenAll}
+              onEditCollection={
+                isDevelopmentPreview ? undefined : management.openEdit
+              }
+              onDeleteCollection={
+                isDevelopmentPreview ? undefined : management.requestDelete
+              }
+              onAddResource={
+                isDevelopmentPreview ? undefined : resourceManagement.openCreate
+              }
+              onEditResource={
+                isDevelopmentPreview ? undefined : resourceManagement.openEdit
+              }
+              onDeleteResource={
+                isDevelopmentPreview
+                  ? undefined
+                  : resourceManagement.requestDelete
+              }
+              onReorderResources={
+                isDevelopmentPreview || search.query.trim()
+                  ? undefined
+                  : (collectionId, orderedResourceIds) =>
+                      void resourceReorder.reorder(
+                        collectionId,
+                        orderedResourceIds,
+                      )
+              }
+              onMoveResource={
+                isDevelopmentPreview || search.query.trim()
+                  ? undefined
+                  : (sourceCollectionId, targetCollectionId, resourceId, targetIndex) =>
+                      void resourceMove.move(
+                        sourceCollectionId,
+                        targetCollectionId,
+                        resourceId,
+                        targetIndex,
+                      )
+              }
+              onReorderCollections={
+                isDevelopmentPreview || search.query.trim()
+                  ? undefined
+                  : orderedCollectionIds =>
+                      void collectionReorder.reorder(orderedCollectionIds)
+              }
+            />
           )}
         </section>
       </div>
