@@ -31,6 +31,15 @@ export function normalizeWebsiteName(value: string): string {
   return value.trim()
 }
 
+/**
+ * Returns whether two website names are the same name, for the purpose of
+ * enforcing that every resource's name is unique within a collection.
+ * Ignores case and surrounding whitespace.
+ */
+export function websiteNamesMatch(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase()
+}
+
 /** Converts typed URL failures into concise form validation messages. */
 export function getWebsiteUrlValidationError(
   value: string,

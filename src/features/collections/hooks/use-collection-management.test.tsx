@@ -121,6 +121,33 @@ describe('useCollectionManagement', () => {
     expect(result.current.collectionToDelete).toBeNull()
   })
 
+  it('reports a name conflict under the name field instead of the generic form error', async () => {
+    const existing = createTestCollection({ name: 'Development' })
+    const state = createTestState({ collections: [existing] })
+    const save = vi.fn<(nextState: CollectionsState) => Promise<void>>()
+    const { result } = renderHook(() =>
+      useCollectionManagement({ state, save }),
+    )
+
+    act(() => {
+      result.current.openCreate()
+      result.current.updateFormValues({
+        name: 'development',
+        description: '',
+        icon: 'folder',
+        color: '#f97316',
+      })
+    })
+    await act(async () => result.current.submitEditor())
+
+    expect(save).not.toHaveBeenCalled()
+    expect(result.current.nameError).toBe(
+      'A collection with this name already exists.',
+    )
+    expect(result.current.formError).toBeUndefined()
+    expect(result.current.editor).toEqual({ mode: 'create' })
+  })
+
   it('preserves entered values when persistence fails', async () => {
     const state = createTestState()
     const save = vi

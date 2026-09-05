@@ -32,3 +32,13 @@ export function normalizeCollectionName(value: string): string {
 
   return value.trim()
 }
+
+/**
+ * Returns whether two collection names are the same collection name, for
+ * the purpose of enforcing that every collection's name is unique. Ignores
+ * case and surrounding whitespace, so "Development", "development", and
+ * " Development " are all considered the same name.
+ */
+export function collectionNamesMatch(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase()
+}

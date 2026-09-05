@@ -109,6 +109,36 @@ describe('useWebsiteResourceManagement', () => {
     expect(result.current.editor).toEqual({ mode: 'create' })
   })
 
+  it('rejects a duplicate resource name without losing form values', async () => {
+    const existingResource = createTestWebsiteResource()
+    const collection = createTestCollection({
+      resources: [existingResource],
+    })
+    const state = createTestState({ collections: [collection] })
+    const save = createSaveMock()
+    const { result } = renderHook(() =>
+      useWebsiteResourceManagement({ state, save }),
+    )
+    const enteredValues = {
+      name: existingResource.name,
+      url: 'https://example.com/',
+      collectionId: collection.id,
+    }
+
+    act(() => {
+      result.current.openCreate(collection)
+      result.current.updateFormValues(enteredValues)
+    })
+    await act(async () => result.current.submitEditor())
+
+    expect(save).not.toHaveBeenCalled()
+    expect(result.current.nameError).toBe(
+      'A website with this name already exists in that collection.',
+    )
+    expect(result.current.formValues).toEqual(enteredValues)
+    expect(result.current.editor).toEqual({ mode: 'create' })
+  })
+
   it('edits and moves a website while updating both collection timestamps', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(2_000)
     const resource = createTestWebsiteResource()

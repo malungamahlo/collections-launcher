@@ -195,6 +195,11 @@ export function useWebsiteResourceManagement({
         error.code === 'DUPLICATE_RESOURCE_URL'
       ) {
         setUrlError(error.message)
+      } else if (
+        error instanceof CollectionOperationError &&
+        error.code === 'DUPLICATE_RESOURCE_NAME'
+      ) {
+        setNameError(error.message)
       } else {
         console.error('Could not save website resource', error)
         setFormError('The website could not be saved. Try again.')

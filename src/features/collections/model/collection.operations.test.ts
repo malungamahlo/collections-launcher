@@ -41,6 +41,80 @@ describe('collection operations', () => {
     )
   })
 
+  it('rejects a duplicate collection name, ignoring case and whitespace', () => {
+    const existing = createTestCollection({ name: 'Development' })
+    const state = createTestState({ collections: [existing] })
+    const duplicate = createTestCollection({
+      id: 'collection-2',
+      name: '  development  ',
+    })
+
+    expect(() => addCollection(state, duplicate)).toThrowError(
+      expect.objectContaining({ code: 'DUPLICATE_COLLECTION_NAME' }),
+    )
+  })
+
+  it('rejects renaming a collection into an existing name', () => {
+    const first = createTestCollection({ id: 'collection-1', name: 'First' })
+    const second = createTestCollection({
+      id: 'collection-2',
+      name: 'Second',
+    })
+    const state = createTestState({ collections: [first, second] })
+
+    expect(() =>
+      updateCollection(state, { ...second, name: 'First' }),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_COLLECTION_NAME' }))
+  })
+
+  it('allows updating a collection while keeping its own name', () => {
+    const collection = createTestCollection({ name: 'Development' })
+    const state = createTestState({ collections: [collection] })
+
+    const result = updateCollection(state, {
+      ...collection,
+      description: 'Updated',
+    })
+
+    expect(result.collections[0]?.description).toBe('Updated')
+  })
+
+  it('rejects a new collection whose own resources repeat a URL', () => {
+    const collection = createTestCollection({
+      resources: [
+        createTestWebsiteResource({ id: 'resource-1' }),
+        createTestWebsiteResource({ id: 'resource-2', name: 'GitHub again' }),
+      ],
+    })
+    const state = createTestState()
+
+    expect(() => addCollection(state, collection)).toThrowError(
+      expect.objectContaining({ code: 'DUPLICATE_RESOURCE_URL' }),
+    )
+  })
+
+  it('rejects a new collection whose own resources repeat a name, ignoring case', () => {
+    const collection = createTestCollection({
+      resources: [
+        createTestWebsiteResource({
+          id: 'resource-1',
+          name: 'GitHub',
+          url: 'https://github.com/',
+        }),
+        createTestWebsiteResource({
+          id: 'resource-2',
+          name: 'github',
+          url: 'https://example.com/',
+        }),
+      ],
+    })
+    const state = createTestState()
+
+    expect(() => addCollection(state, collection)).toThrowError(
+      expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }),
+    )
+  })
+
   it('updates and removes a collection', () => {
     const collection = createTestCollection()
     const state = createTestState({ collections: [collection] })
@@ -151,6 +225,46 @@ describe('collection operations', () => {
     )
   })
 
+  it('rejects a duplicate resource name inside one collection, ignoring case', () => {
+    const existingResource = createTestWebsiteResource()
+    const duplicateResource = createTestWebsiteResource({
+      id: 'resource-2',
+      name: '  github  ',
+      url: 'https://example.com/',
+    })
+    const collection = createTestCollection({
+      resources: [existingResource],
+    })
+    const state = createTestState({ collections: [collection] })
+
+    expect(() =>
+      addResourceToCollection(state, collection.id, duplicateResource, 2_000),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }))
+  })
+
+  it('allows the same resource name in different collections', () => {
+    const resource = createTestWebsiteResource()
+    const source = createTestCollection({ resources: [resource] })
+    const target = createTestCollection({
+      id: 'collection-2',
+      name: 'Research',
+    })
+    const state = createTestState({ collections: [source, target] })
+    const sameNameDifferentUrl = createTestWebsiteResource({
+      id: 'resource-2',
+      url: 'https://example.com/',
+    })
+
+    const result = addResourceToCollection(
+      state,
+      target.id,
+      sameNameDifferentUrl,
+      2_000,
+    )
+
+    expect(result.collections[1]?.resources).toEqual([sameNameDifferentUrl])
+  })
+
   it('allows the same URL in different collections', () => {
     const resource = createTestWebsiteResource()
     const source = createTestCollection({ resources: [resource] })
@@ -199,6 +313,26 @@ describe('collection operations', () => {
     expect(updatedState.collections[0]?.resources).toEqual([updatedResource])
     expect(removedState.collections[0]?.resources).toEqual([])
     expect(removedState.collections[0]?.updatedAt).toBe(3_000)
+  })
+
+  it('rejects updating a resource into a name already used by another resource in the collection', () => {
+    const first = createTestWebsiteResource({ id: 'resource-1' })
+    const second = createTestWebsiteResource({
+      id: 'resource-2',
+      name: 'Second',
+      url: 'https://second.example.com/',
+    })
+    const collection = createTestCollection({ resources: [first, second] })
+    const state = createTestState({ collections: [collection] })
+
+    expect(() =>
+      updateResourceInCollection(
+        state,
+        collection.id,
+        { ...second, name: first.name },
+        2_000,
+      ),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }))
   })
 
   it('moves a resource between collections immutably', () => {
@@ -259,6 +393,26 @@ describe('collection operations', () => {
     ).toThrowError(
       expect.objectContaining({ code: 'DUPLICATE_RESOURCE_URL' }),
     )
+  })
+
+  it('rejects moving a resource into a collection that already has that name', () => {
+    const resource = createTestWebsiteResource()
+    const source = createTestCollection({ resources: [resource] })
+    const target = createTestCollection({
+      id: 'collection-2',
+      name: 'Research',
+      resources: [
+        createTestWebsiteResource({
+          id: 'resource-2',
+          url: 'https://different.example.com/',
+        }),
+      ],
+    })
+    const state = createTestState({ collections: [source, target] })
+
+    expect(() =>
+      moveResource(state, source.id, target.id, resource.id, 2_000),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }))
   })
 
   it('reorders resources and updates the parent timestamp', () => {

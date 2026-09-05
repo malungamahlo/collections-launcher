@@ -1,5 +1,5 @@
-import { Plus } from 'lucide-react'
-import { useRef } from 'react'
+import { Plus, Upload } from 'lucide-react'
+import { useRef, type ChangeEvent } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { CollectionGrid } from '@app/features/collections/components/collection-grid'
 import { CollectionFormDialog } from '@app/features/collections/components/collection-form-dialog'
@@ -23,7 +23,10 @@ import type {
   WebsiteResource,
 } from '@app/features/collections/model/collection.types'
 import { ChromeLocalCollectionsRepository } from '@app/features/collections/storage/chrome-local-collections.repository'
+import { ImportCollectionDialog } from '@app/engine/portability/components/import-collection-dialog'
 import { useExportCollection } from '@app/engine/portability/hooks/use-export-collection'
+import { useImportCollection } from '@app/engine/portability/hooks/use-import-collection'
+import { BUNDLE_FILE_EXTENSION } from '@app/engine/portability/model/bundle.types'
 import { BrowserFileDownloadAdapter } from '@app/platform/browser/file-download.adapter'
 import { BrowserTabsAdapter } from '@app/platform/browser/tabs.adapter'
 
@@ -33,6 +36,7 @@ const fileDownloadAdapter = new BrowserFileDownloadAdapter()
 
 function App() {
   const dashboardFallbackFocusRef = useRef<HTMLButtonElement>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
   const storedCollections = useCollectionsState(collectionsRepository)
   const isDevelopmentPreview = import.meta.env.MODE === 'samples'
   const management = useCollectionManagement({
@@ -56,6 +60,10 @@ function App() {
     save: storedCollections.save,
   })
   const exportCollection = useExportCollection(fileDownloadAdapter)
+  const importCollection = useImportCollection({
+    state: storedCollections.state,
+    save: storedCollections.save,
+  })
 
   // Preview mode displays deterministic data without writing it to user storage.
   const collections = isDevelopmentPreview
@@ -68,6 +76,15 @@ function App() {
     void tabsAdapter.open(resource.url).catch(error => {
       console.error(`Could not open ${resource.url}`, error)
     })
+  }
+
+  function handleImportFileChange(event: ChangeEvent<HTMLInputElement>): void {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (file) {
+      void importCollection.handleFileSelected(file)
+    }
   }
 
   function handleOpenAll(collection: Collection): void {
@@ -114,14 +131,24 @@ function App() {
                 />
 
                 {!isDevelopmentPreview && (
-                  <Button
-                    ref={dashboardFallbackFocusRef}
-                    className="w-full shrink-0 gap-2 whitespace-nowrap sm:w-auto"
-                    onClick={management.openCreate}
-                  >
-                    <Plus className="size-4" aria-hidden="true" />
-                    New collection
-                  </Button>
+                  <>
+                    <Button
+                      variant="secondary"
+                      className="w-full shrink-0 gap-2 whitespace-nowrap sm:w-auto"
+                      onClick={() => importFileInputRef.current?.click()}
+                    >
+                      <Upload className="size-4" aria-hidden="true" />
+                      Import collection
+                    </Button>
+                    <Button
+                      ref={dashboardFallbackFocusRef}
+                      className="w-full shrink-0 gap-2 whitespace-nowrap sm:w-auto"
+                      onClick={management.openCreate}
+                    >
+                      <Plus className="size-4" aria-hidden="true" />
+                      New collection
+                    </Button>
+                  </>
                 )}
               </div>
             )}
@@ -129,15 +156,33 @@ function App() {
             {!isDevelopmentPreview &&
               status === 'ready' &&
               collections.length === 0 && (
-                <Button
-                  ref={dashboardFallbackFocusRef}
-                  className="w-full gap-2 sm:w-auto"
-                  onClick={management.openCreate}
-                >
-                  <Plus className="size-4" aria-hidden="true" />
-                  New collection
-                </Button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <Button
+                    variant="secondary"
+                    className="w-full gap-2 sm:w-auto"
+                    onClick={() => importFileInputRef.current?.click()}
+                  >
+                    <Upload className="size-4" aria-hidden="true" />
+                    Import collection
+                  </Button>
+                  <Button
+                    ref={dashboardFallbackFocusRef}
+                    className="w-full gap-2 sm:w-auto"
+                    onClick={management.openCreate}
+                  >
+                    <Plus className="size-4" aria-hidden="true" />
+                    New collection
+                  </Button>
+                </div>
               )}
+
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept={BUNDLE_FILE_EXTENSION}
+              hidden
+              onChange={handleImportFileChange}
+            />
           </div>
 
           {status === 'loading' && (
@@ -277,6 +322,16 @@ function App() {
           fallbackFocusRef={dashboardFallbackFocusRef}
           onConfirm={() => void resourceManagement.confirmDelete()}
           onClose={resourceManagement.cancelDelete}
+        />
+      )}
+
+      {importCollection.importState.status !== 'idle' && (
+        <ImportCollectionDialog
+          importState={importCollection.importState}
+          fallbackFocusRef={dashboardFallbackFocusRef}
+          onChosenNameChange={importCollection.updateChosenName}
+          onConfirm={() => void importCollection.confirmImport()}
+          onClose={importCollection.close}
         />
       )}
     </main>

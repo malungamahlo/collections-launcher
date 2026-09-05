@@ -1,3 +1,4 @@
+import { collectionNamesMatch } from './collection.validation'
 import type {
   Collection,
   CollectionId,
@@ -6,14 +7,17 @@ import type {
   ResourceId,
   Timestamp,
 } from './collection.types'
+import { websiteNamesMatch } from './website-resource.validation'
 
 /** Stable error categories that presentation code can handle later. */
 export type CollectionOperationErrorCode =
   | 'COLLECTION_NOT_FOUND'
   | 'RESOURCE_NOT_FOUND'
   | 'DUPLICATE_COLLECTION_ID'
+  | 'DUPLICATE_COLLECTION_NAME'
   | 'DUPLICATE_RESOURCE_ID'
   | 'DUPLICATE_RESOURCE_URL'
+  | 'DUPLICATE_RESOURCE_NAME'
   | 'INVALID_RESOURCE_ORDER'
   | 'SAME_COLLECTION_MOVE'
   | 'INVALID_COLLECTION_ORDER'
@@ -129,6 +133,48 @@ function ensureUniqueResourceUrl(
 }
 
 /**
+ * Rejects a resource name already used by another resource in a collection.
+ */
+function ensureUniqueResourceName(
+  collection: Collection,
+  resource: CollectionResource,
+): void {
+  const alreadyExists = collection.resources.some(
+    existingResource =>
+      existingResource.id !== resource.id &&
+      websiteNamesMatch(existingResource.name, resource.name),
+  )
+
+  if (alreadyExists) {
+    throw new CollectionOperationError(
+      'DUPLICATE_RESOURCE_NAME',
+      'A website with this name already exists in that collection.',
+    )
+  }
+}
+
+/**
+ * Rejects a collection name already used by another collection.
+ */
+function ensureUniqueCollectionName(
+  state: CollectionsState,
+  collection: Collection,
+): void {
+  const alreadyExists = state.collections.some(
+    existingCollection =>
+      existingCollection.id !== collection.id &&
+      collectionNamesMatch(existingCollection.name, collection.name),
+  )
+
+  if (alreadyExists) {
+    throw new CollectionOperationError(
+      'DUPLICATE_COLLECTION_NAME',
+      'A collection with this name already exists.',
+    )
+  }
+}
+
+/**
  * Ensures a complete collection does not introduce repeated resource IDs.
  */
 function ensureCollectionResourceIdsAreUnique(
@@ -156,6 +202,41 @@ function ensureCollectionResourceIdsAreUnique(
 }
 
 /**
+ * Ensures a complete collection's own resources don't duplicate each
+ * other's name or URL. Unlike `ensureUniqueResourceName`/
+ * `ensureUniqueResourceUrl`, which check one resource against an existing
+ * collection, this checks every resource in a freshly built collection
+ * (e.g. one just imported) against every other resource in that same list.
+ */
+function ensureCollectionResourcesAreInternallyUnique(
+  collection: Collection,
+): void {
+  const seenUrls = new Set<string>()
+  const seenNames = new Set<string>()
+
+  for (const resource of collection.resources) {
+    if (seenUrls.has(resource.url)) {
+      throw new CollectionOperationError(
+        'DUPLICATE_RESOURCE_URL',
+        'This website is already saved in that collection.',
+      )
+    }
+
+    const normalizedName = resource.name.trim().toLowerCase()
+
+    if (seenNames.has(normalizedName)) {
+      throw new CollectionOperationError(
+        'DUPLICATE_RESOURCE_NAME',
+        'A website with this name already exists in that collection.',
+      )
+    }
+
+    seenUrls.add(resource.url)
+    seenNames.add(normalizedName)
+  }
+}
+
+/**
  * Adds a valid collection without changing the existing state object.
  */
 export function addCollection(
@@ -173,7 +254,9 @@ export function addCollection(
     )
   }
 
+  ensureUniqueCollectionName(state, collection)
   ensureCollectionResourceIdsAreUnique(state, collection)
+  ensureCollectionResourcesAreInternallyUnique(collection)
 
   return {
     ...state,
@@ -189,7 +272,9 @@ export function updateCollection(
   collection: Collection,
 ): CollectionsState {
   findCollection(state, collection.id)
+  ensureUniqueCollectionName(state, collection)
   ensureCollectionResourceIdsAreUnique(state, collection)
+  ensureCollectionResourcesAreInternallyUnique(collection)
 
   return replaceCollection(state, collection)
 }
@@ -261,6 +346,7 @@ export function addResourceToCollection(
   const collection = findCollection(state, collectionId)
   ensureUniqueResourceId(state, resource.id)
   ensureUniqueResourceUrl(collection, resource)
+  ensureUniqueResourceName(collection, resource)
 
   return replaceCollection(state, {
     ...collection,
@@ -281,6 +367,7 @@ export function updateResourceInCollection(
   const collection = findCollection(state, collectionId)
   findResource(collection, resource.id)
   ensureUniqueResourceUrl(collection, resource)
+  ensureUniqueResourceName(collection, resource)
 
   return replaceCollection(state, {
     ...collection,
@@ -374,6 +461,7 @@ export function moveResourceToPosition(
   const targetCollection = findCollection(state, targetCollectionId)
   const resource = findResource(sourceCollection, resourceId)
   ensureUniqueResourceUrl(targetCollection, resource)
+  ensureUniqueResourceName(targetCollection, resource)
 
   const stateWithoutResource = removeResourceFromCollection(
     state,
@@ -419,6 +507,7 @@ export function moveResource(
 
   const resource = findResource(sourceCollection, resourceId)
   ensureUniqueResourceUrl(targetCollection, resource)
+  ensureUniqueResourceName(targetCollection, resource)
   const stateWithoutResource = removeResourceFromCollection(
     state,
     sourceCollectionId,

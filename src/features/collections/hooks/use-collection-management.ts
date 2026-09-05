@@ -5,6 +5,7 @@ import {
 } from '../model/collection.factory'
 import {
   addCollection,
+  CollectionOperationError,
   removeCollection,
   updateCollection,
 } from '../model/collection.operations'
@@ -118,8 +119,15 @@ export function useCollectionManagement({
       await save(nextState)
       setEditor(null)
     } catch (error) {
-      console.error('Could not save collection', error)
-      setFormError('The collection could not be saved. Try again.')
+      if (
+        error instanceof CollectionOperationError &&
+        error.code === 'DUPLICATE_COLLECTION_NAME'
+      ) {
+        setNameError(error.message)
+      } else {
+        console.error('Could not save collection', error)
+        setFormError('The collection could not be saved. Try again.')
+      }
     } finally {
       setIsSaving(false)
     }
