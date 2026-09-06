@@ -18,6 +18,7 @@ export interface ImportPreview {
   readonly suggestedName: string
   readonly description?: string
   readonly icon?: string
+  readonly color?: string
   readonly hasNameConflict: boolean
   readonly resources: readonly BundleResource[]
   readonly skippedDuplicateCount: number
@@ -80,6 +81,7 @@ export function buildImportPreview(
       ? { description: bundle.collection.description }
       : {}),
     ...(bundle.collection.icon ? { icon: bundle.collection.icon } : {}),
+    ...(bundle.collection.color ? { color: bundle.collection.color } : {}),
     hasNameConflict: hasCollectionNameConflict(
       bundle.collection.name,
       state.collections,
@@ -112,7 +114,12 @@ export function applyImportPreview(
   dependencies?: FactoryDependencies,
 ): CollectionsState {
   const collection = createCollection(
-    { name: chosenName, description: preview.description, icon: preview.icon },
+    {
+      name: chosenName,
+      description: preview.description,
+      icon: preview.icon,
+      color: preview.color,
+    },
     dependencies,
   )
   const resources = preview.resources.map(resource =>

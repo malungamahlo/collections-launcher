@@ -9,10 +9,10 @@ import {
 
 /**
  * Converts a stored collection into its portable bundle shape, stripping
- * local identifiers and timestamps before it ever leaves the extension.
- * The icon is included so an imported collection looks the way the
- * exporter intended rather than defaulting to the generic folder icon;
- * `color` stays excluded as UI-only local metadata.
+ * only local identifiers and timestamps before it ever leaves the
+ * extension. Every visual characteristic that isn't a local identifier —
+ * name, description, icon, color — is included, so an imported collection
+ * looks exactly like the one that was exported.
  */
 export function collectionToBundle(
   collection: Collection,
@@ -31,6 +31,7 @@ export function collectionToBundle(
       ? { description: collection.description }
       : {}),
     ...(collection.icon ? { icon: collection.icon } : {}),
+    ...(collection.color ? { color: collection.color } : {}),
     resources,
   }
 

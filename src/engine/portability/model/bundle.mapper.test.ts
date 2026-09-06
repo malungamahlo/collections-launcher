@@ -64,7 +64,7 @@ describe('collectionToBundle', () => {
     ])
   })
 
-  it('excludes id, timestamps, and color from the bundled collection', () => {
+  it('excludes only id and timestamps from the bundled collection', () => {
     const collection = createSingleResourceTestCollection({
       icon: 'code',
       color: '#2563eb',
@@ -75,21 +75,25 @@ describe('collectionToBundle', () => {
     expect(bundle.collection).not.toHaveProperty('id')
     expect(bundle.collection).not.toHaveProperty('createdAt')
     expect(bundle.collection).not.toHaveProperty('updatedAt')
-    expect(bundle.collection).not.toHaveProperty('color')
   })
 
-  it('includes the icon so an imported collection keeps its look', () => {
-    const collection = createSingleResourceTestCollection({ icon: 'code' })
+  it('includes the icon and color so an imported collection looks identical', () => {
+    const collection = createSingleResourceTestCollection({
+      icon: 'code',
+      color: '#2563eb',
+    })
 
     const bundle = collectionToBundle(collection, fixedNow)
 
     expect(bundle.collection.icon).toBe('code')
+    expect(bundle.collection.color).toBe('#2563eb')
   })
 
-  it('omits icon when the collection has none', () => {
+  it('omits icon and color when the collection has neither', () => {
     const bundle = collectionToBundle(createEmptyTestCollection(), fixedNow)
 
     expect(bundle.collection).not.toHaveProperty('icon')
+    expect(bundle.collection).not.toHaveProperty('color')
   })
 
   it('preserves resource order for collections with many resources', () => {

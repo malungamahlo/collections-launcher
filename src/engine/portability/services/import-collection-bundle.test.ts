@@ -69,6 +69,20 @@ describe('buildImportPreview', () => {
     expect(preview).not.toHaveProperty('icon')
   })
 
+  it('carries over the color so the imported collection looks identical', () => {
+    const bundle = createTestBundle({ collection: { color: '#2563eb' } })
+
+    const preview = buildImportPreview(bundle, createTestState())
+
+    expect(preview.color).toBe('#2563eb')
+  })
+
+  it('omits color when the bundle has none', () => {
+    const preview = buildImportPreview(createTestBundle(), createTestState())
+
+    expect(preview).not.toHaveProperty('color')
+  })
+
   it('flags a name conflict against an existing collection, case-insensitively', () => {
     const bundle = createTestBundle({ collection: { name: 'development' } })
     const state = createTestState({
@@ -219,6 +233,28 @@ describe('applyImportPreview', () => {
     )
 
     expect(nextState.collections[0]).not.toHaveProperty('icon')
+  })
+
+  it('carries the color through to the created collection', () => {
+    const nextState = applyImportPreview(
+      createTestState(),
+      { ...preview, color: '#2563eb' },
+      'Development',
+      fixedDependencies,
+    )
+
+    expect(nextState.collections[0]?.color).toBe('#2563eb')
+  })
+
+  it('leaves the collection colorless when the preview has none', () => {
+    const nextState = applyImportPreview(
+      createTestState(),
+      preview,
+      'Development',
+      fixedDependencies,
+    )
+
+    expect(nextState.collections[0]).not.toHaveProperty('color')
   })
 
   it('does not mutate the original state', () => {
