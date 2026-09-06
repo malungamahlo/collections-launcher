@@ -20,6 +20,7 @@ export interface BundleResource {
 export interface BundleCollection {
   readonly name: string
   readonly description?: string
+  readonly icon?: string
   readonly resources: readonly BundleResource[]
 }
 

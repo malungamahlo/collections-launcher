@@ -17,6 +17,7 @@ import { filterValidBundleResources } from '../validation/bundle.validation'
 export interface ImportPreview {
   readonly suggestedName: string
   readonly description?: string
+  readonly icon?: string
   readonly hasNameConflict: boolean
   readonly resources: readonly BundleResource[]
   readonly skippedDuplicateCount: number
@@ -78,6 +79,7 @@ export function buildImportPreview(
     ...(bundle.collection.description
       ? { description: bundle.collection.description }
       : {}),
+    ...(bundle.collection.icon ? { icon: bundle.collection.icon } : {}),
     hasNameConflict: hasCollectionNameConflict(
       bundle.collection.name,
       state.collections,
@@ -110,7 +112,7 @@ export function applyImportPreview(
   dependencies?: FactoryDependencies,
 ): CollectionsState {
   const collection = createCollection(
-    { name: chosenName, description: preview.description },
+    { name: chosenName, description: preview.description, icon: preview.icon },
     dependencies,
   )
   const resources = preview.resources.map(resource =>

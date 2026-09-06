@@ -55,6 +55,20 @@ describe('buildImportPreview', () => {
     expect(preview).not.toHaveProperty('description')
   })
 
+  it('carries over the icon so the imported collection does not default to folder', () => {
+    const bundle = createTestBundle({ collection: { icon: 'cloud' } })
+
+    const preview = buildImportPreview(bundle, createTestState())
+
+    expect(preview.icon).toBe('cloud')
+  })
+
+  it('omits icon when the bundle has none', () => {
+    const preview = buildImportPreview(createTestBundle(), createTestState())
+
+    expect(preview).not.toHaveProperty('icon')
+  })
+
   it('flags a name conflict against an existing collection, case-insensitively', () => {
     const bundle = createTestBundle({ collection: { name: 'development' } })
     const state = createTestState({
@@ -183,6 +197,28 @@ describe('applyImportPreview', () => {
       createdAt: 2_000,
       updatedAt: 2_000,
     })
+  })
+
+  it('carries the icon through to the created collection', () => {
+    const nextState = applyImportPreview(
+      createTestState(),
+      { ...preview, icon: 'cloud' },
+      'Development',
+      fixedDependencies,
+    )
+
+    expect(nextState.collections[0]?.icon).toBe('cloud')
+  })
+
+  it('leaves the collection iconless when the preview has none', () => {
+    const nextState = applyImportPreview(
+      createTestState(),
+      preview,
+      'Development',
+      fixedDependencies,
+    )
+
+    expect(nextState.collections[0]).not.toHaveProperty('icon')
   })
 
   it('does not mutate the original state', () => {

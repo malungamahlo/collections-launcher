@@ -11,6 +11,14 @@ import { BUNDLE_FORMAT, BUNDLE_SCHEMA_VERSION } from '../model/bundle.types'
 export const MAX_BUNDLE_DESCRIPTION_LENGTH = 2_000
 
 /**
+ * Structural-safety cap on a bundle collection's icon value. No domain-level
+ * limit exists (the icon field itself is an unvalidated string; an
+ * unrecognized value already falls back to the folder icon at render time),
+ * so this exists only to bound a hostile string, generously.
+ */
+export const MAX_BUNDLE_ICON_LENGTH = 200
+
+/**
  * Structural-safety cap on the number of resources a bundle can declare.
  * Individual resource name/URL correctness is checked later by
  * `filterValidBundleResources`, which reuses the real domain validators;
@@ -33,6 +41,7 @@ const bundleResourceSchema = z.object({
 const bundleCollectionSchema = z.object({
   name: z.string().max(COLLECTION_NAME_MAX_LENGTH),
   description: z.string().max(MAX_BUNDLE_DESCRIPTION_LENGTH).optional(),
+  icon: z.string().max(MAX_BUNDLE_ICON_LENGTH).optional(),
   resources: z.array(bundleResourceSchema).max(MAX_BUNDLE_RESOURCES),
 })
 
