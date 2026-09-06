@@ -6,10 +6,11 @@ A Chrome/Chromium browser extension that organizes websites into purpose-based c
 
 - **New-tab dashboard** — a fixed-viewport view of all your collections, with an internally-scrolling list per collection so long lists never push other collections out of view.
 - **Toolbar popup capture** — save the page you're currently on into an existing or brand-new collection without leaving it. Reachable entirely by keyboard via `Ctrl+Shift+S` (`Cmd+Shift+S` on Mac), since a pinned toolbar icon can't otherwise be reached by Tab.
-- **Full collection and website management** — create, rename, edit, and delete collections and the websites inside them.
+- **Full collection and website management** — create, rename, edit, and delete collections and the websites inside them. Collection names are unique across your dashboard, and a website's name and URL are each unique within its collection, so accidental duplicates are caught immediately with a clear message.
 - **Drag and drop** — reorder the websites within a collection, reorder collections themselves, or drag a website from one collection into another (including one with no websites yet). Fully usable from the keyboard.
 - **Search** — filter by collection name, website name, or domain.
 - **Open all** — launch every website in a collection as tabs in one click.
+- **Export and import** — export a single collection as a `.collectionLauncher` file and send it to yourself or someone else however you like, then import it back through a preview step that shows exactly what will be added before anything is saved. Malformed or unsupported files are rejected safely, and invalid or duplicate entries inside an otherwise-valid file are skipped and reported rather than failing the whole import.
 
 ## Installing the extension
 
@@ -67,6 +68,8 @@ Automated tests cover domain logic, storage, and component behavior, but they ca
 - Creating, editing, reordering, moving, and deleting both collections and websites.
 - Searching by collection name, website name, and domain.
 - Saving the active page from the toolbar popup, including into a brand-new collection and onto a page that can't be saved (like a `chrome://` page).
+- Exporting a real collection and inspecting the downloaded `.collectionLauncher` file, then re-importing it (into the same or a different profile) and confirming a faithful new collection with a preview step beforehand.
+- Hand-editing an exported file to be malformed (broken JSON, wrong `format`, a future `schemaVersion`) or hostile (a `javascript:` URL, a duplicate entry) and confirming it's rejected or safely skipped, with no change to stored state.
 - That your data is still there after fully restarting the browser.
 - Every primary workflow using only the keyboard.
 
