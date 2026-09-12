@@ -6,7 +6,7 @@ interface CollectionSearchInputProps {
   readonly onChange: (value: string) => void
 }
 
-const SEARCH_LABEL = 'Search collections and websites'
+const SEARCH_LABEL = 'Search collections and resources'
 
 /**
  * Filters the dashboard by collection name, website name, or domain.

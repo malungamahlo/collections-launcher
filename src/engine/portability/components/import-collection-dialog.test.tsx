@@ -54,7 +54,7 @@ describe('ImportCollectionDialog', () => {
 
     expect(screen.getByDisplayValue('Development')).not.toBeNull()
     expect(screen.getByText('Daily tools')).not.toBeNull()
-    expect(screen.getByText('1 website')).not.toBeNull()
+    expect(screen.getByText('1 resource')).not.toBeNull()
     expect(screen.getByText(/GitHub/)).not.toBeNull()
   })
 

@@ -36,11 +36,11 @@ export function WebsiteResourceFormDialog({
 
   return (
     <Dialog
-      title={isCreateMode ? 'Add a website' : 'Edit website'}
+      title={isCreateMode ? 'Add a resource' : 'Edit resource'}
       description={
         isCreateMode
-          ? 'Save a useful website inside one of your collections.'
-          : 'Update the website or move it to another collection.'
+          ? 'Save a useful resource inside one of your collections.'
+          : 'Update the resource or move it to another collection.'
       }
       fallbackFocusRef={fallbackFocusRef}
       onClose={onClose}
@@ -48,7 +48,7 @@ export function WebsiteResourceFormDialog({
       <WebsiteResourceForm
         values={values}
         collections={collections}
-        submitLabel={isCreateMode ? 'Add website' : 'Save changes'}
+        submitLabel={isCreateMode ? 'Add resource' : 'Save changes'}
         nameError={nameError}
         urlError={urlError}
         submissionError={submissionError}

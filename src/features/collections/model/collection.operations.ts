@@ -127,7 +127,7 @@ function ensureUniqueResourceUrl(
   if (alreadyExists) {
     throw new CollectionOperationError(
       'DUPLICATE_RESOURCE_URL',
-      'This website is already saved in that collection.',
+      'This resource is already saved in that collection.',
     )
   }
 }
@@ -148,7 +148,7 @@ function ensureUniqueResourceName(
   if (alreadyExists) {
     throw new CollectionOperationError(
       'DUPLICATE_RESOURCE_NAME',
-      'A website with this name already exists in that collection.',
+      'A resource with this name already exists in that collection.',
     )
   }
 }
@@ -218,7 +218,7 @@ function ensureCollectionResourcesAreInternallyUnique(
     if (seenUrls.has(resource.url)) {
       throw new CollectionOperationError(
         'DUPLICATE_RESOURCE_URL',
-        'This website is already saved in that collection.',
+        'This resource is already saved in that collection.',
       )
     }
 
@@ -227,7 +227,7 @@ function ensureCollectionResourcesAreInternallyUnique(
     if (seenNames.has(normalizedName)) {
       throw new CollectionOperationError(
         'DUPLICATE_RESOURCE_NAME',
-        'A website with this name already exists in that collection.',
+        'A resource with this name already exists in that collection.',
       )
     }
 

@@ -25,7 +25,7 @@ export function NoSearchResultsEmptyState({
       </h3>
 
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-        Try a different collection name, website name, or domain.
+        Try a different collection name, resource name, or domain.
       </p>
     </Card>
   )

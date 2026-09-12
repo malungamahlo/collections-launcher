@@ -202,7 +202,7 @@ export function useWebsiteResourceManagement({
         setNameError(error.message)
       } else {
         console.error('Could not save website resource', error)
-        setFormError('The website could not be saved. Try again.')
+        setFormError('The resource could not be saved. Try again.')
       }
     } finally {
       setIsSaving(false)
@@ -245,7 +245,7 @@ export function useWebsiteResourceManagement({
       setResourceToDelete(null)
     } catch (error) {
       console.error('Could not delete website resource', error)
-      setDeleteError('The website could not be deleted. Try again.')
+      setDeleteError('The resource could not be deleted. Try again.')
     } finally {
       setIsSaving(false)
     }

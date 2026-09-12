@@ -72,9 +72,9 @@ describe('useWebsiteResourceManagement', () => {
     await act(async () => result.current.submitEditor())
 
     expect(save).not.toHaveBeenCalled()
-    expect(result.current.nameError).toBe('Enter a website name.')
+    expect(result.current.nameError).toBe('Enter a resource name.')
     expect(result.current.urlError).toBe(
-      'Website URL must use HTTP or HTTPS.',
+      'Resource URL must use HTTP or HTTPS.',
     )
     expect(result.current.editor).toEqual({ mode: 'create' })
   })
@@ -103,7 +103,7 @@ describe('useWebsiteResourceManagement', () => {
 
     expect(save).not.toHaveBeenCalled()
     expect(result.current.urlError).toBe(
-      'This website is already saved in that collection.',
+      'This resource is already saved in that collection.',
     )
     expect(result.current.formValues).toEqual(enteredValues)
     expect(result.current.editor).toEqual({ mode: 'create' })
@@ -133,7 +133,7 @@ describe('useWebsiteResourceManagement', () => {
 
     expect(save).not.toHaveBeenCalled()
     expect(result.current.nameError).toBe(
-      'A website with this name already exists in that collection.',
+      'A resource with this name already exists in that collection.',
     )
     expect(result.current.formValues).toEqual(enteredValues)
     expect(result.current.editor).toEqual({ mode: 'create' })
@@ -229,7 +229,7 @@ describe('useWebsiteResourceManagement', () => {
     expect(result.current.editor).toEqual({ mode: 'create' })
     expect(result.current.formValues).toEqual(enteredValues)
     expect(result.current.formError).toBe(
-      'The website could not be saved. Try again.',
+      'The resource could not be saved. Try again.',
     )
     expect(consoleError).toHaveBeenCalled()
   })

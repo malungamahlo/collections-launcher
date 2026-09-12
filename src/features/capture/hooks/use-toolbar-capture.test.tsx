@@ -106,7 +106,7 @@ describe('useToolbarCapture', () => {
     await act(async () => result.current.submit())
 
     expect(save).not.toHaveBeenCalled()
-    expect(result.current.nameError).toBe('Enter a website name.')
+    expect(result.current.nameError).toBe('Enter a resource name.')
     expect(result.current.collectionError).toBe(
       'Enter a collection name.',
     )
@@ -136,7 +136,7 @@ describe('useToolbarCapture', () => {
     expect(save).not.toHaveBeenCalled()
     expect(result.current.values.name).toBe('My custom name')
     expect(result.current.submissionError).toBe(
-      'This website is already saved in that collection.',
+      'This resource is already saved in that collection.',
     )
   })
 

@@ -13,7 +13,7 @@ interface ImportCollectionDialogProps {
   readonly onClose: () => void
 }
 
-/** Pluralizes a simple count-based label, e.g. "1 website" vs "3 websites". */
+/** Pluralizes a simple count-based label, e.g. "1 resource" vs "3 resources". */
 function countLabel(count: number, singular: string, plural: string): string {
   return count === 1 ? `1 ${singular}` : `${count} ${plural}`
 }
@@ -128,7 +128,7 @@ export function ImportCollectionDialog({
 
         <div className="space-y-2">
           <p className="text-sm font-medium text-card-foreground">
-            {countLabel(preview.resources.length, 'website', 'websites')}
+            {countLabel(preview.resources.length, 'resource', 'resources')}
           </p>
 
           {preview.resources.length > 0 && (

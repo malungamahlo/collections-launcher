@@ -28,7 +28,7 @@ describe('CollectionGrid', () => {
       expect(markup).toContain(`Edit ${collection.name}`)
       expect(markup).toContain(`Delete ${collection.name}`)
       expect(markup).toContain('Open all')
-      expect(markup).toContain('Add website')
+      expect(markup).toContain('Add resource')
 
       for (const resource of collection.resources) {
         expect(markup).toContain(`Edit ${resource.name}`)

@@ -238,7 +238,7 @@ export function CollectionCard({
               onClick={() => onAddResource(collection)}
             >
               <Plus className="size-4" aria-hidden="true" />
-              Add website
+              Add resource
             </Button>
           )}
         </div>
@@ -253,7 +253,7 @@ export function CollectionCard({
               isEmptyDropZoneOver && 'border-accent bg-accent/5',
             )}
           >
-            No websites saved yet.
+            No resources saved yet.
           </p>
         )}
 

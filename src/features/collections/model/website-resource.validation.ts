@@ -10,11 +10,11 @@ export function getWebsiteNameValidationError(
   const normalizedName = value.trim()
 
   if (!normalizedName) {
-    return 'Enter a website name.'
+    return 'Enter a resource name.'
   }
 
   if (normalizedName.length > WEBSITE_NAME_MAX_LENGTH) {
-    return `Website names must be ${WEBSITE_NAME_MAX_LENGTH} characters or fewer.`
+    return `Resource names must be ${WEBSITE_NAME_MAX_LENGTH} characters or fewer.`
   }
 
   return undefined
@@ -54,11 +54,11 @@ export function getWebsiteUrlValidationError(
 
     switch (error.code) {
       case 'EMPTY_URL':
-        return 'Enter a website URL.'
+        return 'Enter a resource URL.'
       case 'INVALID_URL':
-        return 'Enter a valid website URL.'
+        return 'Enter a valid resource URL.'
       case 'UNSUPPORTED_PROTOCOL':
-        return 'Website URL must use HTTP or HTTPS.'
+        return 'Resource URL must use HTTP or HTTPS.'
     }
   }
 }

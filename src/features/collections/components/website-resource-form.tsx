@@ -60,7 +60,7 @@ export function WebsiteResourceForm({
   return (
     <form className="space-y-5" onSubmit={handleSubmit} noValidate>
       <div className="space-y-2">
-        <Label htmlFor={nameId}>Website name</Label>
+        <Label htmlFor={nameId}>Resource name</Label>
         <Input
           ref={nameInputRef}
           id={nameId}
@@ -85,7 +85,7 @@ export function WebsiteResourceForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={urlId}>Website URL</Label>
+        <Label htmlFor={urlId}>Resource URL</Label>
         <Input
           ref={urlInputRef}
           id={urlId}

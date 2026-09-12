@@ -16,7 +16,7 @@ describe('WebsiteResourceForm', () => {
       <WebsiteResourceForm
         values={{ name: '', url: '', collectionId: collection.id }}
         collections={[collection]}
-        submitLabel="Add website"
+        submitLabel="Add resource"
         onValuesChange={() => undefined}
         onSubmit={() => undefined}
         onCancel={() => undefined}
@@ -24,14 +24,14 @@ describe('WebsiteResourceForm', () => {
     )
 
     expect(
-      screen.getByRole('textbox', { name: 'Website name' }),
+      screen.getByRole('textbox', { name: 'Resource name' }),
     ).toBeTruthy()
     expect(
-      screen.getByRole('textbox', { name: 'Website URL' }),
+      screen.getByRole('textbox', { name: 'Resource URL' }),
     ).toBeTruthy()
     expect(screen.getByRole('combobox', { name: 'Collection' })).toBeTruthy()
     expect(screen.getByRole('option', { name: collection.name })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Add website' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Add resource' })).toBeTruthy()
   })
 
   it('focuses the URL field when it is the first invalid field', async () => {
@@ -44,19 +44,19 @@ describe('WebsiteResourceForm', () => {
         collectionId: collection.id,
       },
       collections: [collection],
-      submitLabel: 'Add website',
+      submitLabel: 'Add resource',
       onValuesChange: () => undefined,
       onSubmit: () => undefined,
       onCancel: () => undefined,
     }
     const { rerender } = render(<WebsiteResourceForm {...props} />)
-    const urlInput = screen.getByRole('textbox', { name: 'Website URL' })
+    const urlInput = screen.getByRole('textbox', { name: 'Resource URL' })
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     rerender(
       <WebsiteResourceForm
         {...props}
-        urlError="Enter a valid website URL."
+        urlError="Enter a valid resource URL."
       />,
     )
 

@@ -143,7 +143,7 @@ describe('createWebsiteResource', () => {
         },
         fixedDependencies,
       ),
-    ).toThrow('Enter a website name.')
+    ).toThrow('Enter a resource name.')
   })
 })
 

@@ -36,7 +36,7 @@ export function CollectionFormDialog({
       title={isCreateMode ? 'Create a collection' : 'Edit collection'}
       description={
         isCreateMode
-          ? 'Group websites that you use for the same purpose.'
+          ? 'Group resources that you use for the same purpose.'
           : 'Update how this collection appears on your dashboard.'
       }
       fallbackFocusRef={fallbackFocusRef}

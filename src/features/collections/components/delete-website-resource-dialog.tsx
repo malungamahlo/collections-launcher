@@ -25,7 +25,7 @@ export function DeleteWebsiteResourceDialog({
 }: DeleteWebsiteResourceDialogProps) {
   return (
     <Dialog
-      title="Delete website?"
+      title="Delete resource?"
       description={`“${resource.name}” will be removed from “${collection.name}”. The collection itself will not be deleted.`}
       fallbackFocusRef={fallbackFocusRef}
       onClose={onClose}
@@ -50,7 +50,7 @@ export function DeleteWebsiteResourceDialog({
           disabled={isDeleting}
           onClick={onConfirm}
         >
-          {isDeleting ? 'Deleting…' : 'Delete website'}
+          {isDeleting ? 'Deleting…' : 'Delete resource'}
         </Button>
       </div>
     </Dialog>

@@ -23,7 +23,7 @@ describe('CollectionSearchInput', () => {
     render(<ControlledSearchInput />)
 
     const input = screen.getByLabelText<HTMLInputElement>(
-      'Search collections and websites',
+      'Search collections and resources',
     )
     await user.type(input, 'git')
 
@@ -35,7 +35,7 @@ describe('CollectionSearchInput', () => {
 
     expect(
       screen.getByLabelText<HTMLInputElement>(
-        'Search collections and websites',
+        'Search collections and resources',
       ).value,
     ).toBe('research')
   })

@@ -19,7 +19,7 @@ export function CollectionsEmptyState() {
       </h3>
 
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-        Collections you create will appear here with all their related websites
+        Collections you create will appear here with all their related resources
         grouped together.
       </p>
     </Card>

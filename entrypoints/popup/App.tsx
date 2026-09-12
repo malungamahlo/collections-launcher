@@ -112,8 +112,8 @@ function App({
       {!isLoading && activePage.status === 'unavailable' && (
         <ErrorMessage>
           {activePage.reason === 'unsupported-url'
-            ? 'This browser page cannot be saved. Open a normal HTTP or HTTPS website and try again.'
-            : 'The active page does not provide a website address that can be saved.'}
+            ? 'This browser page cannot be saved. Open a normal HTTP or HTTPS resource and try again.'
+            : 'The active page does not provide a resource address that can be saved.'}
         </ErrorMessage>
       )}
 
