@@ -20,7 +20,7 @@ export default defineConfig({
   manifest: {
     name: 'Collections Launcher',
     description: 'Organize websites into reusable collections.',
-    permissions: ['storage', 'activeTab'],
+    permissions: ['storage', 'activeTab', 'bookmarks'],
     commands: {
       _execute_action: {
         suggested_key: {
