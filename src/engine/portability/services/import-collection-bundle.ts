@@ -40,20 +40,27 @@ export function hasCollectionNameConflict(
   )
 }
 
+/** The resource-list portion of an `ImportPreview`, shared across every import source. */
+export interface ResourcePreview {
+  readonly resources: readonly BundleResource[]
+  readonly skippedDuplicateCount: number
+  readonly skippedInvalidCount: number
+}
+
 /**
- * Builds an import preview from a structurally valid bundle: the suggested
- * name and description, whether that name conflicts with an existing
- * collection, and the resource list that would actually be imported after
- * dropping invalid entries and deduplicating resources that repeat a URL
- * or a name within the file itself. Nothing here writes to state.
+ * Filters and deduplicates a raw `{name, url}` resource list — the part of
+ * building a preview that has nothing to do with *where* the list came
+ * from. Used by every import source (a parsed bundle file, a bookmark
+ * folder, and whatever comes next): each maps its own raw shape into
+ * `BundleResource[]` first, then shares this one implementation for
+ * per-entry validation and same-URL/same-name deduplication, rather than
+ * each source reimplementing it.
  */
-export function buildImportPreview(
-  bundle: CollectionBundle,
-  state: CollectionsState,
-): ImportPreview {
-  const { validResources, skippedInvalidCount } = filterValidBundleResources(
-    bundle.collection.resources,
-  )
+export function buildResourcePreview(
+  rawResources: readonly BundleResource[],
+): ResourcePreview {
+  const { validResources, skippedInvalidCount } =
+    filterValidBundleResources(rawResources)
 
   const seenUrls = new Set<string>()
   const seenNames: string[] = []
@@ -74,6 +81,23 @@ export function buildImportPreview(
     seenNames.push(resource.name)
     resources.push(resource)
   }
+
+  return { resources, skippedDuplicateCount, skippedInvalidCount }
+}
+
+/**
+ * Builds an import preview from a structurally valid bundle: the suggested
+ * name and description, whether that name conflicts with an existing
+ * collection, and the resource list that would actually be imported after
+ * dropping invalid entries and deduplicating resources that repeat a URL
+ * or a name within the file itself. Nothing here writes to state.
+ */
+export function buildImportPreview(
+  bundle: CollectionBundle,
+  state: CollectionsState,
+): ImportPreview {
+  const { resources, skippedDuplicateCount, skippedInvalidCount } =
+    buildResourcePreview(bundle.collection.resources)
 
   return {
     suggestedName: bundle.collection.name,
