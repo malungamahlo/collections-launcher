@@ -1,4 +1,4 @@
-import { Plus, Upload } from 'lucide-react'
+import { Bookmark, Plus, Upload } from 'lucide-react'
 import { useRef, type ChangeEvent } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { CollectionGrid } from '@app/features/collections/components/collection-grid'
@@ -23,16 +23,20 @@ import type {
   WebsiteResource,
 } from '@app/features/collections/model/collection.types'
 import { ChromeLocalCollectionsRepository } from '@app/features/collections/storage/chrome-local-collections.repository'
+import { BookmarkImportDialog } from '@app/engine/portability/components/bookmark-import-dialog'
 import { ImportCollectionDialog } from '@app/engine/portability/components/import-collection-dialog'
+import { useBookmarkImport } from '@app/engine/portability/hooks/use-bookmark-import'
 import { useExportCollection } from '@app/engine/portability/hooks/use-export-collection'
 import { useImportCollection } from '@app/engine/portability/hooks/use-import-collection'
 import { BUNDLE_FILE_EXTENSION } from '@app/engine/portability/model/bundle.types'
+import { BrowserBookmarksAdapter } from '@app/platform/browser/bookmarks.adapter'
 import { BrowserFileDownloadAdapter } from '@app/platform/browser/file-download.adapter'
 import { BrowserTabsAdapter } from '@app/platform/browser/tabs.adapter'
 
 const collectionsRepository = new ChromeLocalCollectionsRepository()
 const tabsAdapter = new BrowserTabsAdapter()
 const fileDownloadAdapter = new BrowserFileDownloadAdapter()
+const bookmarksAdapter = new BrowserBookmarksAdapter()
 
 function App() {
   const dashboardFallbackFocusRef = useRef<HTMLButtonElement>(null)
@@ -63,6 +67,11 @@ function App() {
   const importCollection = useImportCollection({
     state: storedCollections.state,
     save: storedCollections.save,
+  })
+  const bookmarkImport = useBookmarkImport({
+    adapter: bookmarksAdapter,
+    state: storedCollections.state,
+    onPreviewReady: importCollection.startPreview,
   })
 
   // Preview mode displays deterministic data without writing it to user storage.
@@ -141,6 +150,14 @@ function App() {
                       Import collection
                     </Button>
                     <Button
+                      variant="secondary"
+                      className="w-full shrink-0 gap-2 whitespace-nowrap sm:w-auto"
+                      onClick={() => void bookmarkImport.open()}
+                    >
+                      <Bookmark className="size-4" aria-hidden="true" />
+                      Import bookmarks
+                    </Button>
+                    <Button
                       ref={dashboardFallbackFocusRef}
                       className="w-full shrink-0 gap-2 whitespace-nowrap sm:w-auto"
                       onClick={management.openCreate}
@@ -164,6 +181,14 @@ function App() {
                   >
                     <Upload className="size-4" aria-hidden="true" />
                     Import collection
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full gap-2 sm:w-auto"
+                    onClick={() => void bookmarkImport.open()}
+                  >
+                    <Bookmark className="size-4" aria-hidden="true" />
+                    Import bookmarks
                   </Button>
                   <Button
                     ref={dashboardFallbackFocusRef}
@@ -322,6 +347,16 @@ function App() {
           fallbackFocusRef={dashboardFallbackFocusRef}
           onConfirm={() => void resourceManagement.confirmDelete()}
           onClose={resourceManagement.cancelDelete}
+        />
+      )}
+
+      {bookmarkImport.pickerState.status !== 'closed' && (
+        <BookmarkImportDialog
+          pickerState={bookmarkImport.pickerState}
+          fallbackFocusRef={dashboardFallbackFocusRef}
+          onSelectFolder={bookmarkImport.selectFolder}
+          onConfirm={bookmarkImport.confirmSelection}
+          onClose={bookmarkImport.close}
         />
       )}
 

@@ -95,8 +95,17 @@ export function useImportCollection({ state, save }: UseImportCollectionOptions)
       return
     }
 
-    const preview = buildImportPreview(parsed.bundle, state)
+    startPreview(buildImportPreview(parsed.bundle, state))
+  }
 
+  /**
+   * Enters the preview step from an already-built preview. This is the
+   * shared entry point for every import source — a picked file goes through
+   * `handleFileSelected`, a bookmark folder builds its own preview and calls
+   * this directly — so the previewing → importing → done/error flow that
+   * follows is one implementation, not one per source.
+   */
+  function startPreview(preview: ImportPreview): void {
     setImportState({
       status: 'previewing',
       preview,
@@ -182,5 +191,12 @@ export function useImportCollection({ state, save }: UseImportCollectionOptions)
     setImportState({ status: 'idle' })
   }
 
-  return { importState, handleFileSelected, updateChosenName, confirmImport, close }
+  return {
+    importState,
+    handleFileSelected,
+    startPreview,
+    updateChosenName,
+    confirmImport,
+    close,
+  }
 }

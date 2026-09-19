@@ -314,6 +314,61 @@ describe('useImportCollection', () => {
     })
   })
 
+  it('enters previewing from an already-built preview, for non-file sources', () => {
+    const save = vi.fn<(state: CollectionsState) => Promise<void>>()
+    const { result } = renderHook(() =>
+      useImportCollection({ state: createTestState(), save }),
+    )
+
+    act(() => {
+      result.current.startPreview({
+        suggestedName: 'Work',
+        hasNameConflict: true,
+        resources: [],
+        skippedDuplicateCount: 0,
+        skippedInvalidCount: 0,
+      })
+    })
+
+    expect(result.current.importState).toMatchObject({
+      status: 'previewing',
+      chosenName: 'Work',
+      hasNameConflict: true,
+    })
+  })
+
+  it('commits a preview started from another source through the same confirm flow', async () => {
+    const save = vi
+      .fn<(state: CollectionsState) => Promise<void>>()
+      .mockResolvedValue(undefined)
+    const { result } = renderHook(() =>
+      useImportCollection({ state: createTestState(), save }),
+    )
+
+    act(() => {
+      result.current.startPreview({
+        suggestedName: 'Bookmarked',
+        hasNameConflict: false,
+        resources: [{ name: 'GitHub', url: 'https://github.com/' }],
+        skippedDuplicateCount: 0,
+        skippedInvalidCount: 0,
+      })
+    })
+    await act(async () => {
+      await result.current.confirmImport()
+    })
+
+    const savedState = save.mock.calls[0]?.[0]
+    expect(savedState?.collections).toHaveLength(1)
+    expect(savedState?.collections[0]?.name).toBe('Bookmarked')
+    expect(savedState?.collections[0]?.resources).toHaveLength(1)
+    expect(result.current.importState).toEqual({
+      status: 'done',
+      collectionName: 'Bookmarked',
+      resourceCount: 1,
+    })
+  })
+
   it('returns to idle from close()', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
