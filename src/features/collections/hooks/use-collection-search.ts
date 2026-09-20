@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { Collection, WebsiteResource } from '../model/collection.types'
+import type { Collection, CollectionResource } from '../model/collection.types'
+import { isWebsiteResource } from '../model/resource.guards'
 import { getReadableWebsiteDomain } from '../model/website-url'
 
 interface UseCollectionSearchResult {
@@ -9,9 +10,9 @@ interface UseCollectionSearchResult {
 }
 
 /**
- * Filters collections by name, website name, or website domain.
+ * Filters collections by collection name, resource name, or website domain.
  * A collection whose own name matches is kept in full; a collection that
- * matches only through some of its websites is narrowed to those websites.
+ * matches only through some of its resources is narrowed to those resources.
  */
 export function useCollectionSearch(
   collections: readonly Collection[],
@@ -56,9 +57,17 @@ function filterCollections(
   return matchedCollections
 }
 
-function resourceMatches(resource: WebsiteResource, term: string): boolean {
+/**
+ * A resource matches on its name. A website also matches on its domain; a
+ * file has no domain, so it matches on its name alone.
+ */
+function resourceMatches(resource: CollectionResource, term: string): boolean {
+  if (resource.name.toLowerCase().includes(term)) {
+    return true
+  }
+
   return (
-    resource.name.toLowerCase().includes(term) ||
+    isWebsiteResource(resource) &&
     getReadableWebsiteDomain(resource.url).toLowerCase().includes(term)
   )
 }

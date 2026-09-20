@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import {
+  createTestFileResource,
+  createTestWebsiteResource,
+} from '@app/features/collections/test/collection.fixtures'
 import { collectionToBundle } from './bundle.mapper'
 import { BUNDLE_FORMAT, BUNDLE_SCHEMA_VERSION } from './bundle.types'
 import {
@@ -112,6 +116,37 @@ describe('collectionToBundle', () => {
     const bundle = collectionToBundle(collection, fixedNow)
 
     expect(bundle.collection.name).toBe('日本語 コレクション 🎌 / café')
+  })
+
+  it('leaves file resources out of the URL-only bundle and keeps the websites in order', () => {
+    const collection = createSingleResourceTestCollection({
+      resources: [
+        createTestWebsiteResource({ id: 'w1', name: 'GitHub' }),
+        createTestFileResource({ id: 'f1', name: 'Handbook' }),
+        createTestWebsiteResource({
+          id: 'w2',
+          name: 'MDN',
+          url: 'https://developer.mozilla.org/',
+        }),
+      ],
+    })
+
+    const bundle = collectionToBundle(collection, fixedNow)
+
+    expect(bundle.collection.resources).toEqual([
+      { name: 'GitHub', url: 'https://github.com/' },
+      { name: 'MDN', url: 'https://developer.mozilla.org/' },
+    ])
+  })
+
+  it('exports an empty resource list for a collection holding only files', () => {
+    const collection = createSingleResourceTestCollection({
+      resources: [createTestFileResource()],
+    })
+
+    const bundle = collectionToBundle(collection, fixedNow)
+
+    expect(bundle.collection.resources).toEqual([])
   })
 
   it('defaults exportedAt to the current time when no clock is supplied', () => {

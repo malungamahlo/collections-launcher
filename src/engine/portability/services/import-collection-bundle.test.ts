@@ -3,6 +3,7 @@ import type { FactoryDependencies } from '@app/features/collections/model/collec
 import { CollectionOperationError } from '@app/features/collections/model/collection.operations'
 import {
   createTestCollection,
+  createTestFileResource,
   createTestState,
   createTestWebsiteResource,
 } from '@app/features/collections/test/collection.fixtures'
@@ -216,6 +217,28 @@ describe('buildResourcePreview with existing resources', () => {
 
     expect(preview.resources).toHaveLength(1)
     expect(preview.skippedDuplicateCount).toBe(1)
+  })
+
+  it('skips an incoming website whose name an existing file resource already has', () => {
+    const preview = buildResourcePreview(
+      [{ name: 'handbook', url: 'https://example.com/handbook' }],
+      [createTestFileResource({ name: 'Handbook' })],
+    )
+
+    expect(preview.resources).toEqual([])
+    expect(preview.skippedDuplicateCount).toBe(1)
+  })
+
+  it('does not treat an existing file resource as having a URL', () => {
+    const preview = buildResourcePreview(
+      [{ name: 'MDN', url: 'https://developer.mozilla.org/' }],
+      [createTestFileResource({ name: 'Handbook' }), ...existing],
+    )
+
+    expect(preview.resources).toEqual([
+      { name: 'MDN', url: 'https://developer.mozilla.org/' },
+    ])
+    expect(preview.skippedDuplicateCount).toBe(0)
   })
 
   it('behaves as before when there are no existing resources', () => {

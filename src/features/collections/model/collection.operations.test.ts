@@ -15,6 +15,7 @@ import {
 } from './collection.operations'
 import {
   createTestCollection,
+  createTestFileResource,
   createTestState,
   createTestWebsiteResource,
 } from '../test/collection.fixtures'
@@ -752,5 +753,267 @@ describe('collection operations', () => {
     expect(() =>
       removeCollection(createTestState(), 'missing'),
     ).toThrowError(CollectionOperationError)
+  })
+})
+
+describe('collection operations with file resources', () => {
+  const website = createTestWebsiteResource()
+  const file = createTestFileResource()
+
+  it('adds a file resource and updates the parent timestamp', () => {
+    const collection = createTestCollection({ resources: [website] })
+    const state = createTestState({ collections: [collection] })
+
+    const result = addResourceToCollection(state, collection.id, file, 2_000)
+
+    expect(result.collections[0]?.resources).toEqual([website, file])
+    expect(result.collections[0]?.updatedAt).toBe(2_000)
+  })
+
+  it('rejects a file resource whose name the collection already has, ignoring case', () => {
+    const collection = createTestCollection({ resources: [file] })
+    const state = createTestState({ collections: [collection] })
+    const sameName = createTestFileResource({
+      id: 'file-2',
+      name: '  HANDBOOK ',
+    })
+
+    expect(() =>
+      addResourceToCollection(state, collection.id, sameName, 2_000),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }))
+  })
+
+  it('applies the name rule across types: a file cannot share a name with a website', () => {
+    const collection = createTestCollection({ resources: [website] })
+    const state = createTestState({ collections: [collection] })
+    const sameNameAsWebsite = createTestFileResource({
+      id: 'file-2',
+      name: 'github',
+    })
+
+    expect(() =>
+      addResourceToCollection(state, collection.id, sameNameAsWebsite, 2_000),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }))
+  })
+
+  it('applies the name rule the other way round too: a website cannot share a name with a file', () => {
+    const collection = createTestCollection({ resources: [file] })
+    const state = createTestState({ collections: [collection] })
+    const sameNameAsFile = createTestWebsiteResource({
+      id: 'resource-2',
+      name: 'handbook',
+      url: 'https://example.com/',
+    })
+
+    expect(() =>
+      addResourceToCollection(state, collection.id, sameNameAsFile, 2_000),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }))
+  })
+
+  it('has no rule against files that merely look alike: same type and size under different names are allowed', () => {
+    const collection = createTestCollection({ resources: [file] })
+    const state = createTestState({ collections: [collection] })
+    const lookalike = createTestFileResource({ id: 'file-2', name: 'Handbook copy' })
+
+    const result = addResourceToCollection(state, collection.id, lookalike, 2_000)
+
+    expect(result.collections[0]?.resources).toHaveLength(2)
+  })
+
+  it('never raises a URL collision for file resources, which have no URL', () => {
+    const collection = createTestCollection({
+      resources: [website, file],
+    })
+    const state = createTestState({ collections: [collection] })
+    const anotherFile = createTestFileResource({ id: 'file-2', name: 'Another' })
+
+    expect(() =>
+      addResourceToCollection(state, collection.id, anotherFile, 2_000),
+    ).not.toThrow()
+  })
+
+  it('still rejects a website reusing another website URL when files are present', () => {
+    const collection = createTestCollection({ resources: [file, website] })
+    const state = createTestState({ collections: [collection] })
+    const sameUrl = createTestWebsiteResource({
+      id: 'resource-2',
+      name: 'GitHub again',
+    })
+
+    expect(() =>
+      addResourceToCollection(state, collection.id, sameUrl, 2_000),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_URL' }))
+  })
+
+  it('rejects renaming a file resource into a name another resource already has', () => {
+    const other = createTestWebsiteResource({ id: 'resource-2', name: 'Taken' })
+    const collection = createTestCollection({ resources: [file, other] })
+    const state = createTestState({ collections: [collection] })
+
+    expect(() =>
+      updateResourceInCollection(
+        state,
+        collection.id,
+        { ...file, name: 'Taken' },
+        2_000,
+      ),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }))
+  })
+
+  it('allows updating a file resource while keeping its own name', () => {
+    const collection = createTestCollection({ resources: [file] })
+    const state = createTestState({ collections: [collection] })
+
+    const result = updateResourceInCollection(
+      state,
+      collection.id,
+      { ...file, sizeBytes: 4_096 },
+      2_000,
+    )
+
+    expect(result.collections[0]?.resources[0]).toMatchObject({
+      type: 'file',
+      sizeBytes: 4_096,
+    })
+  })
+
+  it('moves a file resource into another collection', () => {
+    const source = createTestCollection({
+      id: 'source',
+      name: 'Source',
+      resources: [file],
+    })
+    const target = createTestCollection({
+      id: 'target',
+      name: 'Target',
+      resources: [website],
+    })
+    const state = createTestState({ collections: [source, target] })
+
+    const result = moveResource(state, 'source', 'target', file.id, 2_000)
+
+    expect(result.collections[0]?.resources).toEqual([])
+    expect(result.collections[1]?.resources).toEqual([website, file])
+  })
+
+  it('rejects moving a file resource into a collection that already has that name', () => {
+    const source = createTestCollection({
+      id: 'source',
+      name: 'Source',
+      resources: [file],
+    })
+    const target = createTestCollection({
+      id: 'target',
+      name: 'Target',
+      resources: [createTestFileResource({ id: 'file-2' })],
+    })
+    const state = createTestState({ collections: [source, target] })
+
+    expect(() =>
+      moveResource(state, 'source', 'target', file.id, 2_000),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }))
+  })
+
+  it('reorders a mixed list of websites and files', () => {
+    const collection = createTestCollection({ resources: [website, file] })
+    const state = createTestState({ collections: [collection] })
+
+    const result = reorderResourcesInCollection(
+      state,
+      collection.id,
+      [file.id, website.id],
+      2_000,
+    )
+
+    expect(result.collections[0]?.resources).toEqual([file, website])
+  })
+
+  it('adds a whole collection of mixed resources', () => {
+    const collection = createTestCollection({ resources: [website, file] })
+
+    const result = addCollection(createTestState(), collection)
+
+    expect(result.collections[0]?.resources).toEqual([website, file])
+  })
+
+  it('rejects a new collection whose files repeat a name', () => {
+    const collection = createTestCollection({
+      resources: [file, createTestFileResource({ id: 'file-2' })],
+    })
+
+    expect(() => addCollection(createTestState(), collection)).toThrowError(
+      expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }),
+    )
+  })
+
+  it('rejects a new collection where a file and a website share a name', () => {
+    const collection = createTestCollection({
+      resources: [
+        createTestWebsiteResource({ name: 'Handbook' }),
+        createTestFileResource({ name: 'handbook' }),
+      ],
+    })
+
+    expect(() => addCollection(createTestState(), collection)).toThrowError(
+      expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }),
+    )
+  })
+
+  it('accepts a new collection with several differently named files and no URLs', () => {
+    const collection = createTestCollection({
+      resources: [
+        createTestFileResource({ id: 'f1', name: 'One' }),
+        createTestFileResource({ id: 'f2', name: 'Two' }),
+        createTestFileResource({ id: 'f3', name: 'Three' }),
+      ],
+    })
+
+    expect(() => addCollection(createTestState(), collection)).not.toThrow()
+  })
+
+  it('adds several file resources at once, atomically', () => {
+    const collection = createTestCollection({ resources: [website] })
+    const state = createTestState({ collections: [collection] })
+    const files = [
+      createTestFileResource({ id: 'f1', name: 'One' }),
+      createTestFileResource({ id: 'f2', name: 'Two' }),
+    ]
+
+    const result = addResourcesToCollection(state, collection.id, files, 2_000)
+
+    expect(result.collections[0]?.resources).toEqual([website, ...files])
+  })
+
+  it('rejects a batch of files where one collides, adding none', () => {
+    const collection = createTestCollection({ resources: [file] })
+    const state = createTestState({ collections: [collection] })
+    const batch = [
+      createTestFileResource({ id: 'f1', name: 'Fresh' }),
+      createTestFileResource({ id: 'f2', name: 'handbook' }),
+    ]
+
+    expect(() =>
+      addResourcesToCollection(state, collection.id, batch, 2_000),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_NAME' }))
+    expect(state.collections[0]?.resources).toEqual([file])
+  })
+
+  it('rejects a file resource id already used by a website elsewhere', () => {
+    const other = createTestCollection({
+      id: 'other',
+      name: 'Other',
+      resources: [createTestWebsiteResource({ id: 'shared' })],
+    })
+    const target = createTestCollection({ id: 'target', name: 'Target' })
+    const state = createTestState({ collections: [target, other] })
+
+    expect(() =>
+      addResourcesToCollection(
+        state,
+        'target',
+        [createTestFileResource({ id: 'shared', name: 'Clash' })],
+        2_000,
+      ),
+    ).toThrowError(expect.objectContaining({ code: 'DUPLICATE_RESOURCE_ID' }))
   })
 })

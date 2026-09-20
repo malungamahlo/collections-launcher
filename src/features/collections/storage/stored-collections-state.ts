@@ -1,11 +1,16 @@
 import {
   COLLECTIONS_SCHEMA_VERSION,
   type Collection,
+  type CollectionResource,
   type CollectionsState,
+  type FileResource,
   type WebsiteResource,
 } from '../model/collection.types'
 import { getCollectionNameValidationError } from '../model/collection.validation'
 import { getWebsiteNameValidationError } from '../model/website-resource.validation'
+
+/** A generous bound on a stored MIME type (RFC 6838 allows 127 + `/` + 127). */
+const MAX_STORED_MIME_TYPE_LENGTH = 255
 
 /** Outcomes produced when resolving a value read from browser storage. */
 export type StoredStateStatus =
@@ -69,9 +74,30 @@ function isValidStoredWebsiteUrl(value: unknown): value is string {
 }
 
 /**
+ * Determines whether a stored value is a plausible MIME type. Deliberately
+ * loose — a type the registry doesn't know is still a valid file, opened
+ * externally — but it must be a real, bounded, non-blank string.
+ */
+function isValidStoredMimeType(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.trim().length > 0 &&
+    value.length <= MAX_STORED_MIME_TYPE_LENGTH
+  )
+}
+
+/**
+ * Determines whether a stored value is a valid file size in bytes: a
+ * non-negative whole number that is safe to represent exactly.
+ */
+function isValidStoredSizeBytes(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+/**
  * Determines whether an unknown value is a valid website resource.
  */
-function isWebsiteResource(value: unknown): value is WebsiteResource {
+function isValidStoredWebsiteResource(value: unknown): value is WebsiteResource {
   if (!isRecord(value)) {
     return false
   }
@@ -90,6 +116,38 @@ function isWebsiteResource(value: unknown): value is WebsiteResource {
 }
 
 /**
+ * Determines whether an unknown value is a valid file resource. It is held to
+ * the same standard as a website: a malformed one makes the whole state
+ * malformed rather than being quietly repaired or dropped.
+ */
+function isValidStoredFileResource(value: unknown): value is FileResource {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    value.id.trim().length > 0 &&
+    value.type === 'file' &&
+    typeof value.name === 'string' &&
+    getWebsiteNameValidationError(value.name) === undefined &&
+    isValidStoredMimeType(value.mimeType) &&
+    isValidStoredSizeBytes(value.sizeBytes) &&
+    isTimestamp(value.createdAt) &&
+    isTimestamp(value.updatedAt)
+  )
+}
+
+/**
+ * Determines whether an unknown value is a valid resource of any known type.
+ * A resource whose `type` is not one this version knows is invalid, so the
+ * all-or-nothing guarantee holds for the union exactly as it did for websites.
+ */
+function isValidStoredResource(value: unknown): value is CollectionResource {
+  return isValidStoredWebsiteResource(value) || isValidStoredFileResource(value)
+}
+
+/**
  * Determines whether an unknown value is a valid collection.
  */
 function isCollection(value: unknown): value is Collection {
@@ -105,7 +163,7 @@ function isCollection(value: unknown): value is Collection {
     isOptionalString(value.description) &&
     isOptionalString(value.icon) &&
     isOptionalString(value.color) &&
-    value.resources.every(isWebsiteResource) &&
+    value.resources.every(isValidStoredResource) &&
     isTimestamp(value.createdAt) &&
     isTimestamp(value.updatedAt)
   )

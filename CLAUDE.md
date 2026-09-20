@@ -30,9 +30,11 @@ confused with each other.
   `Browser*` implementation (tabs, active tab, file download, bookmarks).
   Application code depends on the interface; adapters and the storage
   repository are constructed once at module level in `entrypoints/*/App.tsx`.
-  The only place `platform/` reaches
-  into a feature is `active-tab.adapter.ts` importing the URL helper
-  `website-url` from the collections model.
+  `platform/` reaches into a feature in only three places, all for
+  collections-model helpers/types: `active-tab.adapter.ts` (the URL helper
+  `website-url`) and `file-content.adapter.ts` / `indexeddb-file-content.store.ts`
+  (the `ResourceId` type). File-resource bytes are stored through
+  `file-content.adapter.ts` in IndexedDB, separate from `chrome.storage.local`.
 - `src/shared/` — generic UI primitives (`components/ui`), hooks, `lib`, styles.
   Imports nothing from `features/`, `engine/`, or `platform/`.
 - `entrypoints/newtab`, `entrypoints/popup` — composition roots only.
@@ -59,5 +61,10 @@ no jest-dom matchers — use plain assertions; browser APIs come from
   doc stays an accurate snapshot of what that phase built; when later work
   changes the code it describes, add a forward-pointer note to the older doc
   rather than rewriting it.
+- **After completing a phase, always update the Logic Docs before calling it
+  done:** write that phase's numbered doc (what it built, files, reasoning, tests,
+  exit check, and anything not verified) and add forward-pointers to any older
+  doc whose code it changed. Do this as part of the phase, not as a later
+  follow-up, and update the plan checklist and its continuation record too.
 - `README.md` and `PRIVACY.md` are user-facing and tracked: describe only what is
   actually implemented and shipped, never the roadmap.

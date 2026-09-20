@@ -14,6 +14,7 @@ import type {
   CollectionResource,
   CollectionsState,
 } from '@app/features/collections/model/collection.types'
+import { isWebsiteResource } from '@app/features/collections/model/resource.guards'
 import { websiteNamesMatch } from '@app/features/collections/model/website-resource.validation'
 import type { BundleResource, CollectionBundle } from '../model/bundle.types'
 import { filterValidBundleResources } from '../validation/bundle.validation'
@@ -84,8 +85,9 @@ export function buildResourcePreview(
   const { validResources, skippedInvalidCount } =
     filterValidBundleResources(rawResources)
 
+  // Only websites have a URL to collide on; every resource has a name.
   const seenUrls = new Set<string>(
-    existingResources.map(resource => resource.url),
+    existingResources.filter(isWebsiteResource).map(resource => resource.url),
   )
   const seenNames: string[] = existingResources.map(resource => resource.name)
   const resources: BundleResource[] = []

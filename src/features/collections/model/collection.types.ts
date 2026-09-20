@@ -13,6 +13,14 @@ export type ResourceId = string
 /** Unix timestamp in milliseconds. */
 export type Timestamp = number
 
+/**
+ * The kinds of resource a collection can contain. Deliberately just two: a
+ * specific *kind of file* (PDF, Markdown, Word…) is identified by
+ * `FileResource.mimeType`, not by adding a member here, so supporting a new
+ * file format never changes this union.
+ */
+export type ResourceType = 'website' | 'file'
+
 /** A website that a user has saved as part of a collection. */
 export interface WebsiteResource {
   readonly id: ResourceId
@@ -25,10 +33,26 @@ export interface WebsiteResource {
 }
 
 /**
- * The resource types that a collection can contain.
- * This alias can become a union when more resource types are introduced.
+ * A file a user has added to a collection. Only its metadata lives here: the
+ * file's bytes are held by the file-content storage adapter, keyed by this
+ * resource's own `id`, so there is no separate content reference to keep in
+ * sync. What *kind* of file this is — and therefore how it is shown and
+ * opened — is looked up from `mimeType` in the resource-kind registry.
  */
-export type CollectionResource = WebsiteResource
+export interface FileResource {
+  readonly id: ResourceId
+  readonly type: 'file'
+  readonly name: string
+  /** An open-ended standard MIME type, e.g. `application/pdf`. */
+  readonly mimeType: string
+  /** The file's size in bytes when it was added. */
+  readonly sizeBytes: number
+  readonly createdAt: Timestamp
+  readonly updatedAt: Timestamp
+}
+
+/** The resources a collection can contain: a discriminated union on `type`. */
+export type CollectionResource = WebsiteResource | FileResource
 
 /** A named workspace containing related resources. */
 export interface Collection {

@@ -2,6 +2,7 @@ import {
   COLLECTIONS_SCHEMA_VERSION,
   type Collection,
   type CollectionsState,
+  type FileResource,
   type WebsiteResource,
 } from '../model/collection.types'
 
@@ -18,6 +19,24 @@ export function createTestWebsiteResource(
     type: 'website',
     name: 'GitHub',
     url: 'https://github.com/',
+    createdAt: TEST_TIMESTAMP,
+    updatedAt: TEST_TIMESTAMP,
+    ...overrides,
+  }
+}
+
+/**
+ * Creates a valid file resource that tests can customize.
+ */
+export function createTestFileResource(
+  overrides: Partial<FileResource> = {},
+): FileResource {
+  return {
+    id: 'file-resource-1',
+    type: 'file',
+    name: 'Handbook',
+    mimeType: 'application/pdf',
+    sizeBytes: 2_048,
     createdAt: TEST_TIMESTAMP,
     updatedAt: TEST_TIMESTAMP,
     ...overrides,

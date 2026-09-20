@@ -22,6 +22,7 @@ import type {
   Collection,
   WebsiteResource,
 } from '@app/features/collections/model/collection.types'
+import { isWebsiteResource } from '@app/features/collections/model/resource.guards'
 import { ChromeLocalCollectionsRepository } from '@app/features/collections/storage/chrome-local-collections.repository'
 import { BookmarkImportDialog } from '@app/engine/portability/components/bookmark-import-dialog'
 import { ImportCollectionDialog } from '@app/engine/portability/components/import-collection-dialog'
@@ -97,15 +98,19 @@ function App() {
   }
 
   function handleOpenAll(collection: Collection): void {
-    if (collection.resources.length === 0) {
+    // "Open all" launches websites as tabs; a file resource has no URL to
+    // open this way (it is opened on its own from its row).
+    const urls = collection.resources
+      .filter(isWebsiteResource)
+      .map(resource => resource.url)
+
+    if (urls.length === 0) {
       return
     }
 
-    void tabsAdapter
-      .openMany(collection.resources.map(resource => resource.url))
-      .catch(error => {
-        console.error(`Could not open collection ${collection.id}`, error)
-      })
+    void tabsAdapter.openMany(urls).catch(error => {
+      console.error(`Could not open collection ${collection.id}`, error)
+    })
   }
 
   return (

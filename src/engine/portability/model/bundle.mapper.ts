@@ -1,4 +1,5 @@
 import type { Collection } from '@app/features/collections/model/collection.types'
+import { isWebsiteResource } from '@app/features/collections/model/resource.guards'
 import {
   BUNDLE_FORMAT,
   BUNDLE_SCHEMA_VERSION,
@@ -18,12 +19,15 @@ export function collectionToBundle(
   collection: Collection,
   now: () => number = Date.now,
 ): CollectionBundle {
-  const resources: readonly BundleResource[] = collection.resources.map(
-    (resource) => ({
+  // The bundle format is URL-only. File resources have no URL and their
+  // content cannot be carried in a JSON bundle, so they are left out here —
+  // an attachment-carrying format is Part 3 of V3.
+  const resources: readonly BundleResource[] = collection.resources
+    .filter(isWebsiteResource)
+    .map(resource => ({
       name: resource.name,
       url: resource.url,
-    }),
-  )
+    }))
 
   const bundleCollection: BundleCollection = {
     name: collection.name,

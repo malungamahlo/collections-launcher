@@ -34,6 +34,7 @@ import type {
   WebsiteResource,
 } from '../model/collection.types'
 import { emptyCollectionDroppableId } from '../model/resource-drag'
+import { isWebsiteResource } from '../model/resource.guards'
 import { WebsiteResourceItem } from './website-resource-item'
 
 interface CollectionCardProps {
@@ -92,6 +93,11 @@ export function CollectionCard({
   const titleId = useId()
   const CollectionIcon = COLLECTION_ICONS[collection.icon ?? ''] ?? Folder
   const resourceCount = collection.resources.length
+  // Transitional: only website rows can be rendered so far. A file resource
+  // gets its own row in Phase G of V3; until then none can be created, so this
+  // hides nothing a user can have. (Reordering also needs every resource id to
+  // be rendered, which is another reason Phase G removes this filter.)
+  const websiteResources = collection.resources.filter(isWebsiteResource)
   const resourceLabel =
     resourceCount === 1 ? '1 resource' : `${resourceCount} resources`
   const { setNodeRef: setEmptyDropZoneRef, isOver: isEmptyDropZoneOver } =
@@ -260,11 +266,11 @@ export function CollectionCard({
         {collection.resources.length > 0 && (
           <div className="relative">
             <SortableContext
-              items={collection.resources.map(resource => resource.id)}
+              items={websiteResources.map(resource => resource.id)}
               strategy={verticalListSortingStrategy}
             >
               <ul className="scroll-slim max-h-80 space-y-2 overflow-y-auto pr-1">
-                {collection.resources.map(resource => (
+                {websiteResources.map(resource => (
                   <WebsiteResourceItem
                     key={resource.id}
                     resource={resource}

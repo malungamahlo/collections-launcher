@@ -7,6 +7,7 @@ import type {
   ResourceId,
   Timestamp,
 } from './collection.types'
+import { isWebsiteResource } from './resource.guards'
 import { websiteNamesMatch } from './website-resource.validation'
 
 /** Stable error categories that presentation code can handle later. */
@@ -113,14 +114,22 @@ function ensureUniqueResourceId(
 
 /**
  * Rejects a normalized URL already used by another resource in a collection.
+ * Only websites have a URL, so a file resource can neither collide on one nor
+ * be collided with; file resources are governed by the name rule alone (see
+ * `ensureUniqueResourceName`).
  */
 function ensureUniqueResourceUrl(
   collection: Collection,
   resource: CollectionResource,
 ): void {
+  if (!isWebsiteResource(resource)) {
+    return
+  }
+
   const alreadyExists = collection.resources.some(
     existingResource =>
       existingResource.id !== resource.id &&
+      isWebsiteResource(existingResource) &&
       existingResource.url === resource.url,
   )
 
@@ -215,7 +224,8 @@ function ensureCollectionResourcesAreInternallyUnique(
   const seenNames = new Set<string>()
 
   for (const resource of collection.resources) {
-    if (seenUrls.has(resource.url)) {
+    // Only websites have a URL to collide on; names apply to every resource.
+    if (isWebsiteResource(resource) && seenUrls.has(resource.url)) {
       throw new CollectionOperationError(
         'DUPLICATE_RESOURCE_URL',
         'This resource is already saved in that collection.',
@@ -231,7 +241,10 @@ function ensureCollectionResourcesAreInternallyUnique(
       )
     }
 
-    seenUrls.add(resource.url)
+    if (isWebsiteResource(resource)) {
+      seenUrls.add(resource.url)
+    }
+
     seenNames.add(normalizedName)
   }
 }

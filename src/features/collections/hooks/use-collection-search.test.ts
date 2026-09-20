@@ -4,6 +4,7 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createTestCollection,
+  createTestFileResource,
   createTestWebsiteResource,
 } from '../test/collection.fixtures'
 import { useCollectionSearch } from './use-collection-search'
@@ -106,5 +107,80 @@ describe('useCollectionSearch', () => {
     act(() => result.current.setQuery('nothing matches this'))
 
     expect(result.current.filteredCollections).toEqual([])
+  })
+
+  describe('file resources', () => {
+    const website = createTestWebsiteResource({
+      id: 'resource-1',
+      name: 'GitHub',
+      url: 'https://github.com/',
+    })
+    const file = createTestFileResource({
+      id: 'file-1',
+      name: 'Employee handbook',
+      mimeType: 'application/pdf',
+    })
+
+    it('matches a file by name', () => {
+      const collections = [
+        createTestCollection({ id: 'collection-1', resources: [website, file] }),
+      ]
+      const { result } = renderHook(() => useCollectionSearch(collections))
+
+      act(() => result.current.setQuery('handbook'))
+
+      expect(result.current.filteredCollections).toEqual([
+        { ...collections[0], resources: [file] },
+      ])
+    })
+
+    it('narrows a mixed collection to only the resources that match', () => {
+      const collections = [
+        createTestCollection({ id: 'collection-1', resources: [website, file] }),
+      ]
+      const { result } = renderHook(() => useCollectionSearch(collections))
+
+      act(() => result.current.setQuery('github'))
+
+      expect(result.current.filteredCollections).toEqual([
+        { ...collections[0], resources: [website] },
+      ])
+    })
+
+    it('still matches a website by domain when files sit beside it', () => {
+      const domainOnly = createTestWebsiteResource({
+        id: 'resource-2',
+        name: 'My videos',
+        url: 'https://youtube.com/watch',
+      })
+      const collections = [
+        createTestCollection({
+          id: 'collection-1',
+          resources: [file, domainOnly],
+        }),
+      ]
+      const { result } = renderHook(() => useCollectionSearch(collections))
+
+      act(() => result.current.setQuery('youtube'))
+
+      expect(result.current.filteredCollections).toEqual([
+        { ...collections[0], resources: [domainOnly] },
+      ])
+    })
+
+    it('matches a file on its name alone, not on its type or size', () => {
+      const collections = [
+        createTestCollection({ id: 'collection-1', resources: [file] }),
+      ]
+      const { result } = renderHook(() => useCollectionSearch(collections))
+
+      act(() => result.current.setQuery('pdf'))
+
+      expect(result.current.filteredCollections).toEqual([])
+
+      act(() => result.current.setQuery('2048'))
+
+      expect(result.current.filteredCollections).toEqual([])
+    })
   })
 })

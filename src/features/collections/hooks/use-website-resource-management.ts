@@ -16,6 +16,7 @@ import type {
   ResourceId,
   WebsiteResource,
 } from '../model/collection.types'
+import { isWebsiteResource } from '../model/resource.guards'
 import {
   getWebsiteNameValidationError,
   getWebsiteUrlValidationError,
@@ -152,7 +153,13 @@ export function useWebsiteResourceManagement({
           resource => resource.id === editor.resourceId,
         )
 
-        if (!sourceCollection || !currentResource) {
+        // Only websites are edited through this form; a file resource with
+        // this id is treated the same as a missing one.
+        if (
+          !sourceCollection ||
+          !currentResource ||
+          !isWebsiteResource(currentResource)
+        ) {
           throw new Error('The website resource no longer exists.')
         }
 

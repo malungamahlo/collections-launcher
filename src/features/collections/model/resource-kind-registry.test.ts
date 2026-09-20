@@ -1,0 +1,194 @@
+import { describe, expect, it } from 'vitest'
+import {
+  DEFAULT_RESOURCE_KIND,
+  getFilePickerTypes,
+  getResourceKind,
+  getViewerStrategy,
+  inferMimeType,
+  normalizeMimeType,
+  RESOURCE_KINDS,
+  UNKNOWN_MIME_TYPE,
+  type ViewerStrategy,
+} from './resource-kind-registry'
+
+const DOCX =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const XLSX =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const PPTX =
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+
+describe('registry contents', () => {
+  it('only ever uses the three supported viewer strategies', () => {
+    const allowed: readonly ViewerStrategy[] = [
+      'native-pdf',
+      'render-markdown',
+      'open-externally',
+    ]
+
+    for (const kind of [...RESOURCE_KINDS, DEFAULT_RESOURCE_KIND]) {
+      expect(allowed).toContain(kind.viewer)
+    }
+  })
+
+  it('has unique kind ids and never lists a MIME type or extension twice', () => {
+    const ids = RESOURCE_KINDS.map(kind => kind.id)
+    const formats = RESOURCE_KINDS.flatMap(kind => kind.formats)
+    const mimeTypes = formats.map(format => format.mimeType)
+    const extensions = formats.flatMap(format => format.extensions)
+
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(new Set(mimeTypes).size).toBe(mimeTypes.length)
+    expect(new Set(extensions).size).toBe(extensions.length)
+  })
+
+  it('keeps every MIME type lower-case and every extension lower-case with a leading dot', () => {
+    for (const format of RESOURCE_KINDS.flatMap(kind => kind.formats)) {
+      expect(format.mimeType).toBe(format.mimeType.toLowerCase())
+
+      for (const extension of format.extensions) {
+        expect(extension).toMatch(/^\.[a-z0-9]+$/)
+      }
+    }
+  })
+
+  it('gives PDF the native viewer and Markdown the renderer', () => {
+    expect(getViewerStrategy('application/pdf')).toBe('native-pdf')
+    expect(getViewerStrategy('text/markdown')).toBe('render-markdown')
+  })
+
+  it('opens Word, Excel, and PowerPoint externally, in both current and legacy formats', () => {
+    const officeMimeTypes = [
+      DOCX,
+      'application/msword',
+      XLSX,
+      'application/vnd.ms-excel',
+      PPTX,
+      'application/vnd.ms-powerpoint',
+    ]
+
+    for (const mimeType of officeMimeTypes) {
+      expect(getResourceKind(mimeType)).not.toBe(DEFAULT_RESOURCE_KIND)
+      expect(getViewerStrategy(mimeType)).toBe('open-externally')
+    }
+  })
+})
+
+describe('normalizeMimeType', () => {
+  it('trims, lower-cases, and drops parameters', () => {
+    expect(normalizeMimeType('  Text/Markdown; charset=UTF-8 ')).toBe(
+      'text/markdown',
+    )
+  })
+
+  it('returns an empty string for an empty one', () => {
+    expect(normalizeMimeType('')).toBe('')
+  })
+})
+
+describe('getResourceKind', () => {
+  it('finds a kind by MIME type, ignoring case and parameters', () => {
+    expect(getResourceKind('Application/PDF').id).toBe('pdf')
+    expect(getResourceKind('text/markdown; charset=utf-8').id).toBe('markdown')
+  })
+
+  it('resolves an unlisted MIME type to the default, opened externally', () => {
+    const kind = getResourceKind('application/x-something-new')
+
+    expect(kind).toBe(DEFAULT_RESOURCE_KIND)
+    expect(kind.viewer).toBe('open-externally')
+  })
+
+  it('resolves an empty MIME type to the default', () => {
+    expect(getResourceKind('')).toBe(DEFAULT_RESOURCE_KIND)
+  })
+
+  it('does not treat a merely similar type as a match', () => {
+    expect(getResourceKind('text/markdown-extra')).toBe(DEFAULT_RESOURCE_KIND)
+    expect(getResourceKind('application/pdf2')).toBe(DEFAULT_RESOURCE_KIND)
+  })
+
+  it('defaults every unlisted MIME type to open-externally', () => {
+    for (const mimeType of ['image/png', 'text/plain', 'video/mp4', 'x/y']) {
+      expect(getViewerStrategy(mimeType)).toBe('open-externally')
+    }
+  })
+})
+
+describe('inferMimeType', () => {
+  it('maps a registered extension to its canonical MIME type', () => {
+    expect(inferMimeType('report.pdf', '')).toBe('application/pdf')
+    expect(inferMimeType('notes.md', '')).toBe('text/markdown')
+    expect(inferMimeType('notes.markdown', '')).toBe('text/markdown')
+    expect(inferMimeType('plan.docx', '')).toBe(DOCX)
+    expect(inferMimeType('budget.xlsx', '')).toBe(XLSX)
+    expect(inferMimeType('deck.pptx', '')).toBe(PPTX)
+  })
+
+  it('maps legacy Office extensions too', () => {
+    expect(inferMimeType('old.doc', '')).toBe('application/msword')
+    expect(inferMimeType('old.xls', '')).toBe('application/vnd.ms-excel')
+    expect(inferMimeType('old.ppt', '')).toBe('application/vnd.ms-powerpoint')
+  })
+
+  it('prefers a registered extension over a generic declared type', () => {
+    expect(inferMimeType('notes.md', 'text/plain')).toBe('text/markdown')
+  })
+
+  it('is case-insensitive about the extension', () => {
+    expect(inferMimeType('REPORT.PDF', '')).toBe('application/pdf')
+  })
+
+  it('uses only the last extension', () => {
+    expect(inferMimeType('archive.pdf.docx', '')).toBe(DOCX)
+  })
+
+  it('falls back to the normalized declared type for an unregistered extension', () => {
+    expect(inferMimeType('photo.png', 'IMAGE/PNG')).toBe('image/png')
+  })
+
+  it('falls back to application/octet-stream when nothing is known', () => {
+    expect(inferMimeType('mystery', '')).toBe(UNKNOWN_MIME_TYPE)
+    expect(inferMimeType('mystery.zzz', '')).toBe(UNKNOWN_MIME_TYPE)
+  })
+
+  it('does not treat a leading-dot name as having an extension', () => {
+    expect(inferMimeType('.pdf', '')).toBe(UNKNOWN_MIME_TYPE)
+  })
+})
+
+describe('getFilePickerTypes', () => {
+  it('offers one picker entry per registered kind, labelled', () => {
+    const types = getFilePickerTypes()
+
+    expect(types.map(type => type.description)).toEqual(
+      RESOURCE_KINDS.map(kind => kind.label),
+    )
+  })
+
+  it('maps each MIME type to its extensions', () => {
+    const pdf = getFilePickerTypes().find(
+      type => type.description === 'PDF document',
+    )
+    const word = getFilePickerTypes().find(
+      type => type.description === 'Word document',
+    )
+
+    expect(pdf?.accept).toEqual({ 'application/pdf': ['.pdf'] })
+    expect(word?.accept).toEqual({
+      [DOCX]: ['.docx'],
+      'application/msword': ['.doc'],
+    })
+  })
+
+  it('returns fresh arrays, so a caller cannot mutate the registry', () => {
+    const [first] = getFilePickerTypes()
+    const accepted = first?.accept['application/pdf']
+
+    if (Array.isArray(accepted)) {
+      accepted.push('.mutated')
+    }
+
+    expect(getFilePickerTypes()[0]?.accept['application/pdf']).toEqual(['.pdf'])
+  })
+})
