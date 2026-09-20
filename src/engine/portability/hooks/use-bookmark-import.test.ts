@@ -153,71 +153,367 @@ describe('useBookmarkImport', () => {
     })
   })
 
-  it('builds a preview from the chosen folder, hands it off, and closes', async () => {
-    const onPreviewReady = vi.fn()
-    const { result } = renderHook(() =>
+  const reference = createTestCollection({
+    id: 'reference',
+    name: 'Reference',
+    resources: [
+      createTestWebsiteResource({
+        name: 'GitHub',
+        url: 'https://github.com/',
+      }),
+    ],
+  })
+
+  // A folder with three importable bookmarks and one internal page.
+  const linksFolder: BookmarkTreeNode = {
+    id: 'links',
+    title: 'Links',
+    children: [
+      { id: 'a', title: 'GitHub', url: 'https://github.com/' },
+      { id: 'b', title: 'MDN', url: 'https://developer.mozilla.org/' },
+      { id: 'c', title: 'Vitest', url: 'https://vitest.dev/' },
+      { id: 'd', title: 'Extensions', url: 'chrome://extensions/' },
+    ],
+  }
+  const linksTree: readonly BookmarkTreeNode[] = [
+    { id: 'bar', title: 'Bookmarks bar', children: [linksFolder] },
+  ]
+
+  async function openAndSelectFolder(
+    state: CollectionsState,
+    onPreviewReady = vi.fn(),
+    folder: BookmarkTreeNode = workFolder,
+    folderTree: readonly BookmarkTreeNode[] = tree,
+  ) {
+    const rendered = renderHook(() =>
       useBookmarkImport({
-        adapter: createAdapter(vi.fn().mockResolvedValue(tree)),
-        state: createTestState(),
+        adapter: createAdapter(vi.fn().mockResolvedValue(folderTree)),
+        state,
         onPreviewReady,
       }),
     )
 
     await act(async () => {
-      await result.current.open()
+      await rendered.result.current.open()
     })
     act(() => {
-      result.current.selectFolder(workFolder)
+      rendered.result.current.selectFolder(folder)
     })
+
+    return { ...rendered, onPreviewReady }
+  }
+
+  async function openAndConfirmFolder(
+    state: CollectionsState,
+    onPreviewReady = vi.fn(),
+    folder: BookmarkTreeNode = workFolder,
+    folderTree: readonly BookmarkTreeNode[] = tree,
+  ) {
+    const rendered = await openAndSelectFolder(
+      state,
+      onPreviewReady,
+      folder,
+      folderTree,
+    )
+
     act(() => {
-      result.current.confirmSelection()
+      rendered.result.current.confirmFolder()
     })
 
-    expect(onPreviewReady).toHaveBeenCalledOnce()
-    expect(onPreviewReady.mock.calls[0]?.[0]).toMatchObject({
-      suggestedName: 'Work',
-      resources: [{ name: 'GitHub', url: 'https://github.com/' }],
-      skippedInvalidCount: 1,
-    })
-    expect(result.current.pickerState).toEqual({ status: 'closed' })
-  })
+    return rendered
+  }
 
-  describe('choosing a destination collection', () => {
-    const reference = createTestCollection({
-      id: 'reference',
-      name: 'Reference',
-      resources: [
-        createTestWebsiteResource({
-          name: 'GitHub',
-          url: 'https://github.com/',
-        }),
-      ],
+  async function openAndConfirmBookmarks(
+    state: CollectionsState,
+    onPreviewReady = vi.fn(),
+    folder: BookmarkTreeNode = workFolder,
+    folderTree: readonly BookmarkTreeNode[] = tree,
+  ) {
+    const rendered = await openAndConfirmFolder(
+      state,
+      onPreviewReady,
+      folder,
+      folderTree,
+    )
+
+    act(() => {
+      rendered.result.current.confirmBookmarks()
     })
 
-    async function openAndSelectFolder(
-      state: CollectionsState,
-      onPreviewReady = vi.fn(),
-    ) {
-      const rendered = renderHook(() =>
+    return rendered
+  }
+
+  describe('choosing bookmarks', () => {
+    it('moves to choosing bookmarks once a folder is confirmed, with every importable bookmark selected', async () => {
+      const { result, onPreviewReady } = await openAndConfirmFolder(
+        createTestState({ collections: [reference] }),
+        vi.fn(),
+        linksFolder,
+        linksTree,
+      )
+
+      expect(result.current.pickerState).toEqual({
+        status: 'choosing-bookmarks',
+        tree: linksTree,
+        selectedFolder: linksFolder,
+        selectedBookmarkIds: ['a', 'b', 'c'],
+      })
+      expect(onPreviewReady).not.toHaveBeenCalled()
+    })
+
+    it('does not move on until a folder is selected', async () => {
+      const { result } = renderHook(() =>
         useBookmarkImport({
           adapter: createAdapter(vi.fn().mockResolvedValue(tree)),
-          state,
-          onPreviewReady,
+          state: createTestState({ collections: [reference] }),
+          onPreviewReady: vi.fn(),
         }),
       )
 
       await act(async () => {
-        await rendered.result.current.open()
+        await result.current.open()
       })
       act(() => {
-        rendered.result.current.selectFolder(workFolder)
+        result.current.confirmFolder()
       })
 
-      return { ...rendered, onPreviewReady }
-    }
+      expect(result.current.pickerState.status).toBe('picking')
+    })
 
-    it('records the selected target while picking, and clears it again', async () => {
+    it('unticks a bookmark and ticks it again', async () => {
+      const { result } = await openAndConfirmFolder(
+        createTestState(),
+        vi.fn(),
+        linksFolder,
+        linksTree,
+      )
+
+      act(() => {
+        result.current.toggleBookmark('b')
+      })
+
+      expect(result.current.pickerState).toMatchObject({
+        selectedBookmarkIds: ['a', 'c'],
+      })
+
+      act(() => {
+        result.current.toggleBookmark('b')
+      })
+
+      expect(result.current.pickerState).toMatchObject({
+        selectedBookmarkIds: ['a', 'c', 'b'],
+      })
+    })
+
+    it('refuses to tick a bookmark that cannot be imported', async () => {
+      const { result } = await openAndConfirmFolder(
+        createTestState(),
+        vi.fn(),
+        linksFolder,
+        linksTree,
+      )
+
+      act(() => {
+        result.current.toggleBookmark('d')
+      })
+
+      expect(result.current.pickerState).toMatchObject({
+        selectedBookmarkIds: ['a', 'b', 'c'],
+      })
+    })
+
+    it('clears the selection, and selects every importable bookmark again', async () => {
+      const { result } = await openAndConfirmFolder(
+        createTestState(),
+        vi.fn(),
+        linksFolder,
+        linksTree,
+      )
+
+      act(() => {
+        result.current.clearBookmarks()
+      })
+
+      expect(result.current.pickerState).toMatchObject({
+        selectedBookmarkIds: [],
+      })
+
+      act(() => {
+        result.current.selectAllBookmarks()
+      })
+
+      expect(result.current.pickerState).toMatchObject({
+        selectedBookmarkIds: ['a', 'b', 'c'],
+      })
+    })
+
+    it('does not move on while nothing is selected', async () => {
+      const { result, onPreviewReady } = await openAndConfirmFolder(
+        createTestState({ collections: [reference] }),
+        vi.fn(),
+        linksFolder,
+        linksTree,
+      )
+
+      act(() => {
+        result.current.clearBookmarks()
+      })
+      act(() => {
+        result.current.confirmBookmarks()
+      })
+
+      expect(result.current.pickerState.status).toBe('choosing-bookmarks')
+      expect(onPreviewReady).not.toHaveBeenCalled()
+    })
+
+    it('with no existing collections, skips the destination step and previews only the selected bookmarks as a new collection', async () => {
+      const { result, onPreviewReady } = await openAndConfirmFolder(
+        createTestState(),
+        vi.fn(),
+        linksFolder,
+        linksTree,
+      )
+
+      act(() => {
+        result.current.toggleBookmark('a')
+      })
+      act(() => {
+        result.current.confirmBookmarks()
+      })
+
+      expect(onPreviewReady).toHaveBeenCalledOnce()
+      expect(onPreviewReady.mock.calls[0]?.[0]).toMatchObject({
+        suggestedName: 'Links',
+        resources: [
+          { name: 'MDN', url: 'https://developer.mozilla.org/' },
+          { name: 'Vitest', url: 'https://vitest.dev/' },
+        ],
+        skippedInvalidCount: 0,
+      })
+      expect(onPreviewReady.mock.calls[0]?.[0]).not.toHaveProperty('target')
+      expect(result.current.pickerState).toEqual({ status: 'closed' })
+    })
+
+    it('with existing collections, moves to choosing a destination keeping the selection', async () => {
+      const { result, onPreviewReady } = await openAndConfirmFolder(
+        createTestState({ collections: [reference] }),
+        vi.fn(),
+        linksFolder,
+        linksTree,
+      )
+
+      act(() => {
+        result.current.toggleBookmark('c')
+      })
+      act(() => {
+        result.current.confirmBookmarks()
+      })
+
+      expect(result.current.pickerState).toEqual({
+        status: 'choosing-destination',
+        tree: linksTree,
+        selectedFolder: linksFolder,
+        selectedBookmarkIds: ['a', 'b'],
+      })
+      expect(onPreviewReady).not.toHaveBeenCalled()
+    })
+
+    it('goes back to the folder step keeping the chosen folder', async () => {
+      const { result } = await openAndConfirmFolder(
+        createTestState({ collections: [reference] }),
+      )
+
+      act(() => {
+        result.current.back()
+      })
+
+      expect(result.current.pickerState).toEqual({
+        status: 'picking',
+        tree,
+        selectedFolder: workFolder,
+      })
+    })
+
+    it('starts a different folder with its own fresh selection', async () => {
+      const differentFolderTree: readonly BookmarkTreeNode[] = [
+        { id: 'bar', title: 'Bookmarks bar', children: [workFolder, linksFolder] },
+      ]
+      const { result } = await openAndConfirmFolder(
+        createTestState(),
+        vi.fn(),
+        workFolder,
+        differentFolderTree,
+      )
+
+      act(() => {
+        result.current.back()
+      })
+      act(() => {
+        result.current.selectFolder(linksFolder)
+      })
+      act(() => {
+        result.current.confirmFolder()
+      })
+
+      expect(result.current.pickerState).toMatchObject({
+        status: 'choosing-bookmarks',
+        selectedFolder: linksFolder,
+        selectedBookmarkIds: ['a', 'b', 'c'],
+      })
+    })
+
+    it('ignores bookmark choices made outside the bookmarks step', async () => {
       const { result } = await openAndSelectFolder(
+        createTestState({ collections: [reference] }),
+      )
+
+      act(() => {
+        result.current.toggleBookmark('1')
+      })
+      act(() => {
+        result.current.clearBookmarks()
+      })
+      act(() => {
+        result.current.selectAllBookmarks()
+      })
+
+      expect(result.current.pickerState).toEqual({
+        status: 'picking',
+        tree,
+        selectedFolder: workFolder,
+      })
+    })
+  })
+
+  describe('choosing a destination collection', () => {
+    it('goes back to the bookmarks step keeping the selection', async () => {
+      const { result } = await openAndConfirmFolder(
+        createTestState({ collections: [reference] }),
+        vi.fn(),
+        linksFolder,
+        linksTree,
+      )
+
+      act(() => {
+        result.current.toggleBookmark('a')
+      })
+      act(() => {
+        result.current.confirmBookmarks()
+      })
+      act(() => {
+        result.current.back()
+      })
+
+      expect(result.current.pickerState).toEqual({
+        status: 'choosing-bookmarks',
+        tree: linksTree,
+        selectedFolder: linksFolder,
+        selectedBookmarkIds: ['b', 'c'],
+      })
+    })
+
+    it('records the selected target, and clears it again', async () => {
+      const { result } = await openAndConfirmBookmarks(
         createTestState({ collections: [reference] }),
       )
 
@@ -226,7 +522,7 @@ describe('useBookmarkImport', () => {
       })
 
       expect(result.current.pickerState).toMatchObject({
-        status: 'picking',
+        status: 'choosing-destination',
         selectedTargetId: 'reference',
       })
 
@@ -235,13 +531,29 @@ describe('useBookmarkImport', () => {
       })
 
       expect(result.current.pickerState).toMatchObject({
-        status: 'picking',
+        status: 'choosing-destination',
         selectedTargetId: undefined,
       })
     })
 
+    it('ignores a target choice made outside the destination step', async () => {
+      const { result } = await openAndSelectFolder(
+        createTestState({ collections: [reference] }),
+      )
+
+      act(() => {
+        result.current.selectTarget('reference')
+      })
+
+      expect(result.current.pickerState).toEqual({
+        status: 'picking',
+        tree,
+        selectedFolder: workFolder,
+      })
+    })
+
     it('imports as a new collection by default', async () => {
-      const { result, onPreviewReady } = await openAndSelectFolder(
+      const { result, onPreviewReady } = await openAndConfirmBookmarks(
         createTestState({ collections: [reference] }),
       )
 
@@ -249,14 +561,42 @@ describe('useBookmarkImport', () => {
         result.current.confirmSelection()
       })
 
+      expect(onPreviewReady).toHaveBeenCalledOnce()
       expect(onPreviewReady.mock.calls[0]?.[0]).not.toHaveProperty('target')
       expect(onPreviewReady.mock.calls[0]?.[0]).toMatchObject({
         suggestedName: 'Work',
       })
+      expect(result.current.pickerState).toEqual({ status: 'closed' })
+    })
+
+    it('previews only the selected bookmarks', async () => {
+      const { result, onPreviewReady } = await openAndConfirmFolder(
+        createTestState({ collections: [reference] }),
+        vi.fn(),
+        linksFolder,
+        linksTree,
+      )
+
+      act(() => {
+        result.current.clearBookmarks()
+      })
+      act(() => {
+        result.current.toggleBookmark('c')
+      })
+      act(() => {
+        result.current.confirmBookmarks()
+      })
+      act(() => {
+        result.current.confirmSelection()
+      })
+
+      expect(onPreviewReady.mock.calls[0]?.[0]).toMatchObject({
+        resources: [{ name: 'Vitest', url: 'https://vitest.dev/' }],
+      })
     })
 
     it('builds a preview into the chosen collection, skipping bookmarks it already has', async () => {
-      const { result, onPreviewReady } = await openAndSelectFolder(
+      const { result, onPreviewReady } = await openAndConfirmBookmarks(
         createTestState({ collections: [reference] }),
       )
 
@@ -277,7 +617,7 @@ describe('useBookmarkImport', () => {
       expect(result.current.pickerState).toEqual({ status: 'closed' })
     })
 
-    it('falls back to a new collection and stays on the picker when the chosen collection was deleted', async () => {
+    it('falls back to a new collection and stays on the destination step when the chosen collection was deleted', async () => {
       const onPreviewReady = vi.fn()
       let state = createTestState({ collections: [reference] })
       const { result, rerender } = renderHook(() =>
@@ -295,6 +635,12 @@ describe('useBookmarkImport', () => {
         result.current.selectFolder(workFolder)
       })
       act(() => {
+        result.current.confirmFolder()
+      })
+      act(() => {
+        result.current.confirmBookmarks()
+      })
+      act(() => {
         result.current.selectTarget('reference')
       })
 
@@ -307,14 +653,14 @@ describe('useBookmarkImport', () => {
 
       expect(onPreviewReady).not.toHaveBeenCalled()
       expect(result.current.pickerState).toMatchObject({
-        status: 'picking',
+        status: 'choosing-destination',
         selectedFolder: workFolder,
         selectedTargetId: undefined,
       })
     })
   })
 
-  it('does nothing when confirmed without a selected folder', async () => {
+  it('does nothing when a later step is confirmed without having reached it', async () => {
     const onPreviewReady = vi.fn()
     const { result } = renderHook(() =>
       useBookmarkImport({
@@ -328,7 +674,16 @@ describe('useBookmarkImport', () => {
       await result.current.open()
     })
     act(() => {
+      result.current.confirmFolder()
+    })
+    act(() => {
+      result.current.confirmBookmarks()
+    })
+    act(() => {
       result.current.confirmSelection()
+    })
+    act(() => {
+      result.current.back()
     })
 
     expect(onPreviewReady).not.toHaveBeenCalled()

@@ -356,7 +356,13 @@ function App() {
           collections={storedCollections.state.collections}
           fallbackFocusRef={dashboardFallbackFocusRef}
           onSelectFolder={bookmarkImport.selectFolder}
+          onConfirmFolder={bookmarkImport.confirmFolder}
+          onToggleBookmark={bookmarkImport.toggleBookmark}
+          onSelectAllBookmarks={bookmarkImport.selectAllBookmarks}
+          onClearBookmarks={bookmarkImport.clearBookmarks}
+          onConfirmBookmarks={bookmarkImport.confirmBookmarks}
           onSelectTarget={bookmarkImport.selectTarget}
+          onBack={bookmarkImport.back}
           onConfirm={bookmarkImport.confirmSelection}
           onClose={bookmarkImport.close}
         />

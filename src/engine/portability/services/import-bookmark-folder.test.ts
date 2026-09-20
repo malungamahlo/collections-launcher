@@ -5,7 +5,11 @@ import {
   createTestState,
   createTestWebsiteResource,
 } from '@app/features/collections/test/collection.fixtures'
-import { buildBookmarkImportPreview } from './import-bookmark-folder'
+import {
+  buildBookmarkImportPreview,
+  getFolderBookmarks,
+  isImportableBookmark,
+} from './import-bookmark-folder'
 
 function createFolder(
   overrides: Partial<BookmarkTreeNode> = {},
@@ -17,6 +21,72 @@ function createFolder(
     ...overrides,
   }
 }
+
+describe('getFolderBookmarks', () => {
+  it('returns only the direct bookmarks, in order, excluding subfolders', () => {
+    const folder = createFolder({
+      children: [
+        { id: '1', title: 'GitHub', url: 'https://github.com/' },
+        {
+          id: '2',
+          title: 'Nested folder',
+          children: [
+            { id: '3', title: 'Nested bookmark', url: 'https://example.com/' },
+          ],
+        },
+        { id: '4', title: 'MDN', url: 'https://developer.mozilla.org/' },
+      ],
+    })
+
+    expect(getFolderBookmarks(folder).map(bookmark => bookmark.id)).toEqual([
+      '1',
+      '4',
+    ])
+  })
+
+  it('returns nothing for an empty folder or one with no children key', () => {
+    expect(getFolderBookmarks(createFolder({ children: [] }))).toEqual([])
+    expect(getFolderBookmarks({ id: 'folder', title: 'Work' })).toEqual([])
+  })
+})
+
+describe('isImportableBookmark', () => {
+  it('accepts a normal titled web bookmark', () => {
+    expect(
+      isImportableBookmark({
+        id: '1',
+        title: 'GitHub',
+        url: 'https://github.com/',
+      }),
+    ).toBe(true)
+  })
+
+  it('rejects an internal browser page', () => {
+    expect(
+      isImportableBookmark({
+        id: '1',
+        title: 'Extensions',
+        url: 'chrome://extensions/',
+      }),
+    ).toBe(false)
+  })
+
+  it('rejects a javascript: bookmarklet', () => {
+    expect(
+      isImportableBookmark({
+        id: '1',
+        title: 'Bookmarklet',
+        url: 'javascript:alert(1)',
+      }),
+    ).toBe(false)
+  })
+
+  it('rejects an untitled bookmark', () => {
+    expect(
+      isImportableBookmark({ id: '1', title: '   ', url: 'https://github.com/' }),
+    ).toBe(false)
+  })
+})
 
 describe('buildBookmarkImportPreview', () => {
   it('maps direct bookmark children into the resource list', () => {
@@ -207,6 +277,90 @@ describe('buildBookmarkImportPreview', () => {
       expect(preview).not.toHaveProperty('target')
       expect(preview.resources).toHaveLength(1)
       expect(preview.skippedDuplicateCount).toBe(0)
+    })
+  })
+
+  describe('with selected bookmarks', () => {
+    const folder = createFolder({
+      children: [
+        { id: '1', title: 'GitHub', url: 'https://github.com/' },
+        { id: '2', title: 'MDN', url: 'https://developer.mozilla.org/' },
+        { id: '3', title: 'Vitest', url: 'https://vitest.dev/' },
+      ],
+    })
+
+    it('includes only the selected bookmarks, in folder order', () => {
+      const preview = buildBookmarkImportPreview(
+        folder,
+        createTestState(),
+        undefined,
+        ['3', '1'],
+      )
+
+      expect(preview.resources).toEqual([
+        { name: 'GitHub', url: 'https://github.com/' },
+        { name: 'Vitest', url: 'https://vitest.dev/' },
+      ])
+    })
+
+    it('includes nothing when the selection is empty', () => {
+      const preview = buildBookmarkImportPreview(
+        folder,
+        createTestState(),
+        undefined,
+        [],
+      )
+
+      expect(preview.resources).toEqual([])
+    })
+
+    it('ignores selected ids that are not in the folder', () => {
+      const preview = buildBookmarkImportPreview(
+        folder,
+        createTestState(),
+        undefined,
+        ['2', 'not-in-this-folder'],
+      )
+
+      expect(preview.resources).toEqual([
+        { name: 'MDN', url: 'https://developer.mozilla.org/' },
+      ])
+    })
+
+    it('still names the new collection after the folder, not after the selection', () => {
+      const preview = buildBookmarkImportPreview(
+        folder,
+        createTestState(),
+        undefined,
+        ['1'],
+      )
+
+      expect(preview.suggestedName).toBe('Work')
+    })
+
+    it('combines with a target, deduplicating only the selected bookmarks against it', () => {
+      const target = createTestCollection({
+        id: 'target',
+        name: 'Reference',
+        resources: [
+          createTestWebsiteResource({
+            name: 'GitHub',
+            url: 'https://github.com/',
+          }),
+        ],
+      })
+
+      const preview = buildBookmarkImportPreview(
+        folder,
+        createTestState({ collections: [target] }),
+        target,
+        ['1', '2'],
+      )
+
+      expect(preview.resources).toEqual([
+        { name: 'MDN', url: 'https://developer.mozilla.org/' },
+      ])
+      expect(preview.skippedDuplicateCount).toBe(1)
     })
   })
 

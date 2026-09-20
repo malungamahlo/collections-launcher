@@ -16,7 +16,10 @@ afterEach(() => {
 const workFolder: BookmarkTreeNode = {
   id: 'work',
   title: 'Work',
-  children: [],
+  children: [
+    { id: 'a', title: 'GitHub', url: 'https://github.com/' },
+    { id: 'b', title: 'MDN', url: 'https://developer.mozilla.org/' },
+  ],
 }
 
 const tree: readonly BookmarkTreeNode[] = [
@@ -28,7 +31,13 @@ function renderDialog(
   collections: readonly Collection[] = [],
 ) {
   const onSelectFolder = vi.fn()
+  const onConfirmFolder = vi.fn()
+  const onToggleBookmark = vi.fn()
+  const onSelectAllBookmarks = vi.fn()
+  const onClearBookmarks = vi.fn()
+  const onConfirmBookmarks = vi.fn()
   const onSelectTarget = vi.fn()
+  const onBack = vi.fn()
   const onConfirm = vi.fn()
   const onClose = vi.fn()
 
@@ -37,139 +46,259 @@ function renderDialog(
       pickerState={pickerState}
       collections={collections}
       onSelectFolder={onSelectFolder}
+      onConfirmFolder={onConfirmFolder}
+      onToggleBookmark={onToggleBookmark}
+      onSelectAllBookmarks={onSelectAllBookmarks}
+      onClearBookmarks={onClearBookmarks}
+      onConfirmBookmarks={onConfirmBookmarks}
       onSelectTarget={onSelectTarget}
+      onBack={onBack}
       onConfirm={onConfirm}
       onClose={onClose}
     />,
   )
 
-  return { onSelectFolder, onSelectTarget, onConfirm, onClose }
+  return {
+    onSelectFolder,
+    onConfirmFolder,
+    onToggleBookmark,
+    onSelectAllBookmarks,
+    onClearBookmarks,
+    onConfirmBookmarks,
+    onSelectTarget,
+    onBack,
+    onConfirm,
+    onClose,
+  }
 }
 
-function getPreviewButton(): HTMLButtonElement {
-  return screen.getByRole('button', {
-    name: 'Preview import',
-  }) as HTMLButtonElement
+function getButton(name: string): HTMLButtonElement {
+  return screen.getByRole('button', { name }) as HTMLButtonElement
 }
 
 describe('BookmarkImportDialog', () => {
-  it('shows a loading message and a disabled Preview button while loading', () => {
-    renderDialog({ status: 'loading' })
+  describe('folder step', () => {
+    it('shows a loading message and a disabled Next button while loading', () => {
+      renderDialog({ status: 'loading' })
 
-    expect(screen.getByText('Loading bookmarks…')).not.toBeNull()
-    expect(getPreviewButton().disabled).toBe(true)
-  })
-
-  it('shows the bookmark folders while picking', () => {
-    renderDialog({ status: 'picking', tree })
-
-    expect(screen.getByText('Bookmarks bar')).not.toBeNull()
-    expect(screen.getByText('Work')).not.toBeNull()
-  })
-
-  it('keeps Preview disabled until a folder is selected', () => {
-    renderDialog({ status: 'picking', tree })
-
-    expect(getPreviewButton().disabled).toBe(true)
-  })
-
-  it('enables Preview once a folder is selected, and confirms on click', async () => {
-    const user = userEvent.setup()
-    const { onConfirm } = renderDialog({
-      status: 'picking',
-      tree,
-      selectedFolder: workFolder,
+      expect(screen.getByText('Loading bookmarks…')).not.toBeNull()
+      expect(getButton('Next').disabled).toBe(true)
     })
 
-    expect(getPreviewButton().disabled).toBe(false)
+    it('shows the bookmark folders while picking', () => {
+      renderDialog({ status: 'picking', tree })
 
-    await user.click(getPreviewButton())
+      expect(screen.getByText('Bookmarks bar')).not.toBeNull()
+      expect(screen.getByText('Work')).not.toBeNull()
+    })
 
-    expect(onConfirm).toHaveBeenCalledOnce()
+    it('keeps Next disabled until a folder is selected', () => {
+      renderDialog({ status: 'picking', tree })
+
+      expect(getButton('Next').disabled).toBe(true)
+    })
+
+    it('enables Next once a folder is selected, and confirms the folder on click', async () => {
+      const user = userEvent.setup()
+      const { onConfirmFolder, onConfirmBookmarks, onConfirm } = renderDialog({
+        status: 'picking',
+        tree,
+        selectedFolder: workFolder,
+      })
+
+      expect(getButton('Next').disabled).toBe(false)
+
+      await user.click(getButton('Next'))
+
+      expect(onConfirmFolder).toHaveBeenCalledOnce()
+      expect(onConfirmBookmarks).not.toHaveBeenCalled()
+      expect(onConfirm).not.toHaveBeenCalled()
+    })
+
+    it('says "Next" whether or not there are collections, as a bookmarks step always follows', () => {
+      renderDialog({ status: 'picking', tree, selectedFolder: workFolder }, [
+        createTestCollection({ id: 'reference', name: 'Reference' }),
+      ])
+
+      expect(getButton('Next')).not.toBeNull()
+      expect(screen.queryByRole('button', { name: 'Preview import' })).toBeNull()
+    })
+
+    it('reports a clicked folder', async () => {
+      const user = userEvent.setup()
+      const { onSelectFolder } = renderDialog({ status: 'picking', tree })
+
+      await user.click(screen.getByText('Work'))
+
+      expect(onSelectFolder).toHaveBeenCalledWith(workFolder)
+    })
+
+    it('does not show the bookmarks or destinations yet', () => {
+      renderDialog({ status: 'picking', tree }, [
+        createTestCollection({ id: 'reference', name: 'Reference' }),
+      ])
+
+      expect(screen.queryByRole('checkbox')).toBeNull()
+      expect(screen.queryByRole('radiogroup')).toBeNull()
+    })
+
+    it('closes on Cancel', async () => {
+      const user = userEvent.setup()
+      const { onClose } = renderDialog({ status: 'picking', tree })
+
+      await user.click(getButton('Cancel'))
+
+      expect(onClose).toHaveBeenCalledOnce()
+    })
   })
 
-  it('reports a clicked folder', async () => {
-    const user = userEvent.setup()
-    const { onSelectFolder } = renderDialog({ status: 'picking', tree })
+  describe('bookmarks step', () => {
+    const collections = [
+      createTestCollection({ id: 'reference', name: 'Reference' }),
+    ]
+    const bookmarksState: Extract<
+      BookmarkPickerState,
+      { status: 'choosing-bookmarks' }
+    > = {
+      status: 'choosing-bookmarks',
+      tree,
+      selectedFolder: workFolder,
+      selectedBookmarkIds: ['a'],
+    }
 
-    await user.click(screen.getByText('Work'))
+    it('names the chosen folder and lists its bookmarks instead of the folder tree', () => {
+      renderDialog(bookmarksState, collections)
 
-    expect(onSelectFolder).toHaveBeenCalledWith(workFolder)
+      expect(screen.getByText('Choose bookmarks')).not.toBeNull()
+      expect(screen.getByText(/bookmarks from “Work”/)).not.toBeNull()
+      expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+      expect(screen.queryByText('Bookmarks bar')).toBeNull()
+    })
+
+    it('reflects the current selection', () => {
+      renderDialog(bookmarksState, collections)
+
+      const checked = (
+        screen.getAllByRole('checkbox') as HTMLInputElement[]
+      ).map(checkbox => checkbox.checked)
+
+      expect(checked).toEqual([true, false])
+      expect(screen.getByText('1 of 2 selected')).not.toBeNull()
+    })
+
+    it('reports a toggled bookmark', async () => {
+      const user = userEvent.setup()
+      const { onToggleBookmark } = renderDialog(bookmarksState, collections)
+
+      await user.click(screen.getByRole('checkbox', { name: /MDN/ }))
+
+      expect(onToggleBookmark).toHaveBeenCalledWith('b')
+    })
+
+    it('reports Select all and Clear', async () => {
+      const user = userEvent.setup()
+      const { onSelectAllBookmarks, onClearBookmarks } = renderDialog(
+        bookmarksState,
+        collections,
+      )
+
+      await user.click(getButton('Select all'))
+      await user.click(getButton('Clear'))
+
+      expect(onSelectAllBookmarks).toHaveBeenCalledOnce()
+      expect(onClearBookmarks).toHaveBeenCalledOnce()
+    })
+
+    it('says "Next" and confirms the bookmarks when there are collections to choose from', async () => {
+      const user = userEvent.setup()
+      const { onConfirmBookmarks } = renderDialog(bookmarksState, collections)
+
+      await user.click(getButton('Next'))
+
+      expect(onConfirmBookmarks).toHaveBeenCalledOnce()
+    })
+
+    it('says "Preview import" when there are no collections, as it is the last step', async () => {
+      const user = userEvent.setup()
+      const { onConfirmBookmarks } = renderDialog(bookmarksState, [])
+
+      expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
+
+      await user.click(getButton('Preview import'))
+
+      expect(onConfirmBookmarks).toHaveBeenCalledOnce()
+    })
+
+    it('keeps the confirm button disabled while nothing is selected', () => {
+      renderDialog({ ...bookmarksState, selectedBookmarkIds: [] }, collections)
+
+      expect(getButton('Next').disabled).toBe(true)
+    })
+
+    it('goes back to the folder step', async () => {
+      const user = userEvent.setup()
+      const { onBack } = renderDialog(bookmarksState, collections)
+
+      await user.click(getButton('Back'))
+
+      expect(onBack).toHaveBeenCalledOnce()
+    })
   })
 
-  describe('destination collection', () => {
+  describe('destination step', () => {
     const collections = [
       createTestCollection({ id: 'reference', name: 'Reference' }),
       createTestCollection({ id: 'reading', name: 'Reading list' }),
     ]
-
-    function getDestinationSelect(): HTMLSelectElement {
-      return screen.getByLabelText('Add to') as HTMLSelectElement
+    const destinationState: Extract<
+      BookmarkPickerState,
+      { status: 'choosing-destination' }
+    > = {
+      status: 'choosing-destination',
+      tree,
+      selectedFolder: workFolder,
+      selectedBookmarkIds: ['a'],
     }
 
-    it('offers a new collection first, then each existing collection', () => {
-      renderDialog({ status: 'picking', tree }, collections)
+    it('names the chosen folder and shows the destinations instead of the bookmarks', () => {
+      renderDialog(destinationState, collections)
 
-      const optionLabels = Array.from(getDestinationSelect().options).map(
-        option => option.textContent,
-      )
-
-      expect(optionLabels).toEqual([
-        'New collection (named after the folder)',
-        'Reference',
-        'Reading list',
-      ])
+      expect(screen.getByText('Choose a collection')).not.toBeNull()
+      expect(screen.getByText(/selected bookmarks from “Work”/)).not.toBeNull()
+      expect(screen.getByRole('radiogroup')).not.toBeNull()
+      expect(screen.queryByRole('checkbox')).toBeNull()
     })
 
-    it('defaults to a new collection', () => {
-      renderDialog({ status: 'picking', tree }, collections)
-
-      expect(getDestinationSelect().value).toBe('')
-    })
-
-    it('shows the currently selected collection', () => {
-      renderDialog(
-        { status: 'picking', tree, selectedTargetId: 'reading' },
-        collections,
-      )
-
-      expect(getDestinationSelect().value).toBe('reading')
-    })
-
-    it('reports the chosen collection, and undefined when switching back to a new one', async () => {
+    it('reports the chosen destination', async () => {
       const user = userEvent.setup()
-      const { onSelectTarget } = renderDialog(
-        { status: 'picking', tree, selectedTargetId: 'reference' },
+      const { onSelectTarget } = renderDialog(destinationState, collections)
+
+      await user.click(screen.getByRole('radio', { name: /Reading list/ }))
+
+      expect(onSelectTarget).toHaveBeenCalledWith('reading')
+    })
+
+    it('goes back to the bookmarks step', async () => {
+      const user = userEvent.setup()
+      const { onBack } = renderDialog(destinationState, collections)
+
+      await user.click(getButton('Back'))
+
+      expect(onBack).toHaveBeenCalledOnce()
+    })
+
+    it('confirms the destination with "Preview import"', async () => {
+      const user = userEvent.setup()
+      const { onConfirm, onConfirmBookmarks } = renderDialog(
+        destinationState,
         collections,
       )
 
-      await user.selectOptions(getDestinationSelect(), 'reading')
-      await user.selectOptions(getDestinationSelect(), '')
+      await user.click(getButton('Preview import'))
 
-      expect(onSelectTarget).toHaveBeenNthCalledWith(1, 'reading')
-      expect(onSelectTarget).toHaveBeenNthCalledWith(2, undefined)
+      expect(onConfirm).toHaveBeenCalledOnce()
+      expect(onConfirmBookmarks).not.toHaveBeenCalled()
     })
-
-    it('hides the destination choice when there are no collections to add to', () => {
-      renderDialog({ status: 'picking', tree })
-
-      expect(screen.queryByLabelText('Add to')).toBeNull()
-    })
-
-    it('hides the destination choice while the bookmarks are loading', () => {
-      renderDialog({ status: 'loading' }, collections)
-
-      expect(screen.queryByLabelText('Add to')).toBeNull()
-    })
-  })
-
-  it('closes on Cancel', async () => {
-    const user = userEvent.setup()
-    const { onClose } = renderDialog({ status: 'picking', tree })
-
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
-
-    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('shows the error state with a Close button', async () => {
@@ -183,7 +312,7 @@ describe('BookmarkImportDialog', () => {
       screen.getByText('Your bookmarks could not be read. Try again.'),
     ).not.toBeNull()
 
-    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(getButton('Close'))
 
     expect(onClose).toHaveBeenCalledOnce()
   })
