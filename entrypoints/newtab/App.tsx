@@ -9,12 +9,17 @@ import { DashboardHeader } from '@app/features/collections/components/dashboard-
 import { DeleteCollectionDialog } from '@app/features/collections/components/delete-collection-dialog'
 import { DeleteWebsiteResourceDialog } from '@app/features/collections/components/delete-website-resource-dialog'
 import { NoSearchResultsEmptyState } from '@app/features/collections/components/no-search-results-empty-state'
+import { AddResourceDialog } from '@app/features/collections/components/add-resource-dialog'
+import { FileResourceForm } from '@app/features/collections/components/file-resource-form'
+import { WebsiteResourceForm } from '@app/features/collections/components/website-resource-form'
 import { WebsiteResourceFormDialog } from '@app/features/collections/components/website-resource-form-dialog'
 import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/sample-collections'
 import { useCollectionManagement } from '@app/features/collections/hooks/use-collection-management'
 import { useCollectionReorder } from '@app/features/collections/hooks/use-collection-reorder'
 import { useCollectionSearch } from '@app/features/collections/hooks/use-collection-search'
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
+import { useAddResource } from '@app/features/collections/hooks/use-add-resource'
+import { useFileResourceManagement } from '@app/features/collections/hooks/use-file-resource-management'
 import { useResourceMove } from '@app/features/collections/hooks/use-resource-move'
 import { useResourceReorder } from '@app/features/collections/hooks/use-resource-reorder'
 import { useWebsiteResourceManagement } from '@app/features/collections/hooks/use-website-resource-management'
@@ -31,13 +36,22 @@ import { useExportCollection } from '@app/engine/portability/hooks/use-export-co
 import { useImportCollection } from '@app/engine/portability/hooks/use-import-collection'
 import { BUNDLE_FILE_EXTENSION } from '@app/engine/portability/model/bundle.types'
 import { BrowserBookmarksAdapter } from '@app/platform/browser/bookmarks.adapter'
+import { BrowserFileContentAdapter } from '@app/platform/browser/file-content.adapter'
 import { BrowserFileDownloadAdapter } from '@app/platform/browser/file-download.adapter'
+import { BrowserFilePickerAdapter } from '@app/platform/browser/file-picker.adapter'
+import { IndexedDbFileContentStore } from '@app/platform/browser/indexeddb-file-content.store'
 import { BrowserTabsAdapter } from '@app/platform/browser/tabs.adapter'
 
 const collectionsRepository = new ChromeLocalCollectionsRepository()
 const tabsAdapter = new BrowserTabsAdapter()
 const fileDownloadAdapter = new BrowserFileDownloadAdapter()
 const bookmarksAdapter = new BrowserBookmarksAdapter()
+const filePickerAdapter = new BrowserFilePickerAdapter()
+// File bytes (or references to them) live in IndexedDB, not in the collections
+// state in `chrome.storage.local`.
+const fileContentAdapter = new BrowserFileContentAdapter(
+  new IndexedDbFileContentStore(),
+)
 
 function App() {
   const dashboardFallbackFocusRef = useRef<HTMLButtonElement>(null)
@@ -47,10 +61,24 @@ function App() {
   const management = useCollectionManagement({
     state: storedCollections.state,
     save: storedCollections.save,
+    fileContent: fileContentAdapter,
   })
   const resourceManagement = useWebsiteResourceManagement({
     state: storedCollections.state,
     save: storedCollections.save,
+    fileContent: fileContentAdapter,
+  })
+  const fileResourceManagement = useFileResourceManagement({
+    state: storedCollections.state,
+    save: storedCollections.save,
+    filePicker: filePickerAdapter,
+    fileContent: fileContentAdapter,
+  })
+  // One "Add resource" entry point covers both websites and files.
+  const addResource = useAddResource({
+    websites: resourceManagement,
+    files: fileResourceManagement,
+    collections: storedCollections.state.collections,
   })
   const resourceReorder = useResourceReorder({
     state: storedCollections.state,
@@ -261,7 +289,7 @@ function App() {
                   : exportCollection.exportCollection
               }
               onAddResource={
-                isDevelopmentPreview ? undefined : resourceManagement.openCreate
+                isDevelopmentPreview ? undefined : addResource.open
               }
               onEditResource={
                 isDevelopmentPreview ? undefined : resourceManagement.openEdit
@@ -327,9 +355,9 @@ function App() {
         />
       )}
 
-      {resourceManagement.editor && (
+      {resourceManagement.editor?.mode === 'edit' && (
         <WebsiteResourceFormDialog
-          mode={resourceManagement.editor.mode}
+          mode="edit"
           values={resourceManagement.formValues}
           collections={storedCollections.state.collections}
           nameError={resourceManagement.nameError}
@@ -340,6 +368,46 @@ function App() {
           onValuesChange={resourceManagement.updateFormValues}
           onSubmit={() => void resourceManagement.submitEditor()}
           onClose={resourceManagement.closeEditor}
+        />
+      )}
+
+      {addResource.isOpen && (
+        <AddResourceDialog
+          type={addResource.type}
+          onTypeChange={addResource.selectType}
+          isBusy={addResource.isBusy}
+          fallbackFocusRef={dashboardFallbackFocusRef}
+          onClose={addResource.close}
+          websiteForm={
+            <WebsiteResourceForm
+              values={resourceManagement.formValues}
+              collections={storedCollections.state.collections}
+              submitLabel="Add resource"
+              nameError={resourceManagement.nameError}
+              urlError={resourceManagement.urlError}
+              submissionError={resourceManagement.formError}
+              isSubmitting={resourceManagement.isSaving}
+              onValuesChange={resourceManagement.updateFormValues}
+              onSubmit={() => void resourceManagement.submitEditor()}
+              onCancel={addResource.close}
+            />
+          }
+          fileForm={
+            <FileResourceForm
+              values={fileResourceManagement.formValues}
+              collections={storedCollections.state.collections}
+              chosenFile={fileResourceManagement.chosenFile}
+              nameError={fileResourceManagement.nameError}
+              fileError={fileResourceManagement.fileError}
+              submissionError={fileResourceManagement.formError}
+              isPicking={fileResourceManagement.isPicking}
+              isSubmitting={fileResourceManagement.isSaving}
+              onValuesChange={fileResourceManagement.updateFormValues}
+              onChooseFile={() => void fileResourceManagement.chooseFile()}
+              onSubmit={() => void fileResourceManagement.submit()}
+              onCancel={addResource.close}
+            />
+          }
         />
       )}
 

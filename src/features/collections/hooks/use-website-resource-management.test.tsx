@@ -2,9 +2,11 @@
 
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { FileContentAdapter } from '@app/platform/browser/file-content.adapter'
 import type { CollectionsState } from '../model/collection.types'
 import {
   createTestCollection,
+  createTestFileResource,
   createTestState,
   createTestWebsiteResource,
 } from '../test/collection.fixtures'
@@ -200,6 +202,114 @@ describe('useWebsiteResourceManagement', () => {
       updatedAt: 2_000,
     })
     expect(result.current.resourceToDelete).toBeNull()
+  })
+
+  describe('deleting a file resource', () => {
+    function createFileContent() {
+      const remove = vi.fn((id: string) => {
+        void id
+        return Promise.resolve()
+      })
+
+      return { adapter: { remove } as unknown as FileContentAdapter, remove }
+    }
+
+    it('removes the resource from the collection and its stored content', async () => {
+      const file = createTestFileResource()
+      const collection = createTestCollection({ resources: [file] })
+      const state = createTestState({ collections: [collection] })
+      const save = createSaveMock()
+      const { adapter, remove } = createFileContent()
+      const { result } = renderHook(() =>
+        useWebsiteResourceManagement({ state, save, fileContent: adapter }),
+      )
+
+      act(() => result.current.requestDelete(collection, file))
+      await act(async () => result.current.confirmDelete())
+
+      expect(save.mock.calls[0][0].collections[0]?.resources).toEqual([])
+      expect(remove).toHaveBeenCalledWith(file.id)
+      expect(result.current.resourceToDelete).toBeNull()
+    })
+
+    it('does not touch stored content when deleting a website', async () => {
+      const website = createTestWebsiteResource()
+      const collection = createTestCollection({ resources: [website] })
+      const state = createTestState({ collections: [collection] })
+      const { adapter, remove } = createFileContent()
+      const { result } = renderHook(() =>
+        useWebsiteResourceManagement({
+          state,
+          save: createSaveMock(),
+          fileContent: adapter,
+        }),
+      )
+
+      act(() => result.current.requestDelete(collection, website))
+      await act(async () => result.current.confirmDelete())
+
+      expect(remove).not.toHaveBeenCalled()
+    })
+
+    it('keeps the stored content, and reports an error, when saving the deletion fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const file = createTestFileResource()
+      const collection = createTestCollection({ resources: [file] })
+      const state = createTestState({ collections: [collection] })
+      const save = vi
+        .fn<(nextState: CollectionsState) => Promise<void>>()
+        .mockRejectedValue(new Error('Storage unavailable'))
+      const { adapter, remove } = createFileContent()
+      const { result } = renderHook(() =>
+        useWebsiteResourceManagement({ state, save, fileContent: adapter }),
+      )
+
+      act(() => result.current.requestDelete(collection, file))
+      await act(async () => result.current.confirmDelete())
+
+      expect(remove).not.toHaveBeenCalled()
+      expect(result.current.deleteError).toBe(
+        'The resource could not be deleted. Try again.',
+      )
+      expect(result.current.resourceToDelete).not.toBeNull()
+    })
+
+    it('still completes the deletion if removing the stored content fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const file = createTestFileResource()
+      const collection = createTestCollection({ resources: [file] })
+      const state = createTestState({ collections: [collection] })
+      const { adapter, remove } = createFileContent()
+      remove.mockRejectedValueOnce(new Error('cleanup failed'))
+      const { result } = renderHook(() =>
+        useWebsiteResourceManagement({
+          state,
+          save: createSaveMock(),
+          fileContent: adapter,
+        }),
+      )
+
+      act(() => result.current.requestDelete(collection, file))
+      await act(async () => result.current.confirmDelete())
+
+      expect(result.current.deleteError).toBeUndefined()
+      expect(result.current.resourceToDelete).toBeNull()
+    })
+
+    it('deletes a file resource without a file-content adapter too', async () => {
+      const file = createTestFileResource()
+      const collection = createTestCollection({ resources: [file] })
+      const state = createTestState({ collections: [collection] })
+      const save = createSaveMock()
+      const { result } = renderHook(() =>
+        useWebsiteResourceManagement({ state, save }),
+      )
+
+      act(() => result.current.requestDelete(collection, file))
+      await act(async () => result.current.confirmDelete())
+
+      expect(save).toHaveBeenCalledOnce()
+    })
   })
 
   it('preserves entered values when storage persistence fails', async () => {

@@ -1,9 +1,15 @@
 import type {
   Collection,
+  FileResource,
   Timestamp,
   WebsiteResource,
 } from './collection.types'
 import { normalizeCollectionName } from './collection.validation'
+import { getFileSizeValidationError } from './file-resource.validation'
+import {
+  normalizeMimeType,
+  UNKNOWN_MIME_TYPE,
+} from './resource-kind-registry'
 import { normalizeWebsiteName } from './website-resource.validation'
 import { normalizeWebsiteUrl } from './website-url'
 
@@ -27,6 +33,13 @@ export interface CreateWebsiteResourceInput {
 
 /** User-provided values that can change on an existing website resource. */
 export type UpdateWebsiteResourceInput = CreateWebsiteResourceInput
+
+/** Values required to create a file resource. */
+export interface CreateFileResourceInput {
+  readonly name: string
+  readonly mimeType: string
+  readonly sizeBytes: number
+}
 
 /**
  * Replaceable system functions used by the factories.
@@ -113,6 +126,37 @@ export function createWebsiteResource(
     name: normalizeWebsiteName(input.name),
     url: normalizeWebsiteUrl(input.url),
     ...(iconUrl ? { iconUrl } : {}),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+/**
+ * Creates a valid file resource with a generated ID and timestamps. Only
+ * metadata is created here; the file's bytes are stored separately, under the
+ * returned resource's `id`, by the file-content adapter. The name follows the
+ * same rules as any resource name; the MIME type is normalized (an empty one
+ * becomes `application/octet-stream`); the size must be within the supported
+ * range.
+ */
+export function createFileResource(
+  input: CreateFileResourceInput,
+  dependencies: FactoryDependencies = defaultDependencies,
+): FileResource {
+  const sizeError = getFileSizeValidationError(input.sizeBytes)
+
+  if (sizeError) {
+    throw new TypeError(sizeError)
+  }
+
+  const timestamp = dependencies.now()
+
+  return {
+    id: dependencies.generateId(),
+    type: 'file',
+    name: normalizeWebsiteName(input.name),
+    mimeType: normalizeMimeType(input.mimeType) || UNKNOWN_MIME_TYPE,
+    sizeBytes: input.sizeBytes,
     createdAt: timestamp,
     updatedAt: timestamp,
   }

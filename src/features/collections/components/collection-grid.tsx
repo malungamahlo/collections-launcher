@@ -17,6 +17,7 @@ import { useResourceDrag } from '../hooks/use-resource-drag'
 import type {
   Collection,
   CollectionId,
+  CollectionResource,
   ResourceId,
   WebsiteResource,
 } from '../model/collection.types'
@@ -36,7 +37,7 @@ interface CollectionGridProps {
   ) => void
   readonly onDeleteResource?: (
     collection: Collection,
-    resource: WebsiteResource,
+    resource: CollectionResource,
   ) => void
   readonly onReorderResources?: (
     collectionId: CollectionId,

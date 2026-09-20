@@ -9,12 +9,14 @@ import {
   removeCollection,
   updateCollection,
 } from '../model/collection.operations'
+import type { FileContentAdapter } from '@app/platform/browser/file-content.adapter'
 import type { Collection, CollectionsState } from '../model/collection.types'
 import { getCollectionNameValidationError } from '../model/collection.validation'
 import {
   EMPTY_COLLECTION_FORM_VALUES,
   type CollectionFormValues,
 } from '../components/collection-form.types'
+import { removeStoredFileContent } from './remove-file-content'
 
 type CollectionEditor =
   | { readonly mode: 'create' }
@@ -23,6 +25,11 @@ type CollectionEditor =
 interface UseCollectionManagementOptions {
   readonly state: CollectionsState
   readonly save: (state: CollectionsState) => Promise<void>
+  /**
+   * When given, deleting a collection also removes the stored content of every
+   * file resource inside it, so the bytes are not left behind.
+   */
+  readonly fileContent?: FileContentAdapter
 }
 
 /**
@@ -31,6 +38,7 @@ interface UseCollectionManagementOptions {
 export function useCollectionManagement({
   state,
   save,
+  fileContent,
 }: UseCollectionManagementOptions) {
   const [editor, setEditor] = useState<CollectionEditor | null>(null)
   const [formValues, setFormValues] = useState<CollectionFormValues>(
@@ -157,6 +165,13 @@ export function useCollectionManagement({
 
     try {
       await save(removeCollection(state, collectionToDelete.id))
+
+      // Only after the collection is gone, so a failure here can leave
+      // orphaned bytes behind but never a resource without its content.
+      if (fileContent) {
+        await removeStoredFileContent(fileContent, collectionToDelete.resources)
+      }
+
       setCollectionToDelete(null)
     } catch (error) {
       console.error('Could not delete collection', error)

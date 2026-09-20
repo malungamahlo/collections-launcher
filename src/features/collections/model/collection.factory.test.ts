@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   createCollection,
+  createFileResource,
   createWebsiteResource,
   type FactoryDependencies,
   updateCollectionMetadata,
   updateWebsiteResourceMetadata,
 } from './collection.factory'
+import { MAX_FILE_RESOURCE_SIZE_BYTES } from './file-resource.validation'
 import { createTestCollection } from '../test/collection.fixtures'
 
 const fixedDependencies: FactoryDependencies = {
@@ -144,6 +146,113 @@ describe('createWebsiteResource', () => {
         fixedDependencies,
       ),
     ).toThrow('Enter a resource name.')
+  })
+})
+
+describe('createFileResource', () => {
+  it('creates a normalized file resource with no content reference', () => {
+    const resource = createFileResource(
+      {
+        name: '  Employee handbook  ',
+        mimeType: ' Application/PDF ',
+        sizeBytes: 2_048,
+      },
+      fixedDependencies,
+    )
+
+    expect(resource).toEqual({
+      id: 'generated-id',
+      type: 'file',
+      name: 'Employee handbook',
+      mimeType: 'application/pdf',
+      sizeBytes: 2_048,
+      createdAt: 1_000,
+      updatedAt: 1_000,
+    })
+  })
+
+  it('falls back to application/octet-stream for an empty MIME type', () => {
+    const resource = createFileResource(
+      { name: 'Mystery', mimeType: '', sizeBytes: 10 },
+      fixedDependencies,
+    )
+
+    expect(resource.mimeType).toBe('application/octet-stream')
+  })
+
+  it('applies the same name rules as any resource', () => {
+    expect(() =>
+      createFileResource(
+        { name: '   ', mimeType: 'application/pdf', sizeBytes: 10 },
+        fixedDependencies,
+      ),
+    ).toThrow('Enter a resource name.')
+    expect(() =>
+      createFileResource(
+        { name: 'N'.repeat(101), mimeType: 'application/pdf', sizeBytes: 10 },
+        fixedDependencies,
+      ),
+    ).toThrow('100 characters or fewer')
+  })
+
+  it('accepts an empty file and a file exactly at the size limit', () => {
+    expect(() =>
+      createFileResource(
+        { name: 'Empty', mimeType: 'text/markdown', sizeBytes: 0 },
+        fixedDependencies,
+      ),
+    ).not.toThrow()
+    expect(() =>
+      createFileResource(
+        {
+          name: 'At the limit',
+          mimeType: 'application/pdf',
+          sizeBytes: MAX_FILE_RESOURCE_SIZE_BYTES,
+        },
+        fixedDependencies,
+      ),
+    ).not.toThrow()
+  })
+
+  it('rejects a file over the size limit', () => {
+    expect(() =>
+      createFileResource(
+        {
+          name: 'Too big',
+          mimeType: 'application/pdf',
+          sizeBytes: MAX_FILE_RESOURCE_SIZE_BYTES + 1,
+        },
+        fixedDependencies,
+      ),
+    ).toThrow('100 MB or smaller')
+  })
+
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects an unusable size of %s',
+    sizeBytes => {
+      expect(() =>
+        createFileResource(
+          { name: 'Odd', mimeType: 'application/pdf', sizeBytes },
+          fixedDependencies,
+        ),
+      ).toThrow('could not be determined')
+    },
+  )
+
+  it('generates a fresh id and timestamps each time by default', () => {
+    const first = createFileResource({
+      name: 'One',
+      mimeType: 'application/pdf',
+      sizeBytes: 1,
+    })
+    const second = createFileResource({
+      name: 'Two',
+      mimeType: 'application/pdf',
+      sizeBytes: 1,
+    })
+
+    expect(first.id).not.toBe(second.id)
+    expect(first.createdAt).toBe(first.updatedAt)
   })
 })
 

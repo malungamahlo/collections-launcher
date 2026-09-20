@@ -58,13 +58,15 @@ describe('CollectionCard export action', () => {
 describe('CollectionCard with file resources', () => {
   const noopProps = { onOpenResource: noop, onOpenAll: noop }
 
-  // Transitional: file rows arrive in Phase G of V3. This pins that a
-  // collection holding a file no longer breaks the card in the meantime.
-  it('renders without error and still shows its website rows', () => {
+  it('shows website and file rows together, in collection order', () => {
     const collection = createTestCollection({
       resources: [
         createTestWebsiteResource({ name: 'GitHub' }),
-        createTestFileResource({ name: 'Handbook' }),
+        createTestFileResource({
+          name: 'Handbook',
+          mimeType: 'application/pdf',
+          sizeBytes: 2_048,
+        }),
       ],
     })
 
@@ -73,6 +75,91 @@ describe('CollectionCard with file resources', () => {
     )
 
     expect(markup).toContain('GitHub')
+    expect(markup).toContain('Handbook')
+    expect(markup).toContain('PDF document')
+    expect(markup.indexOf('GitHub')).toBeLessThan(markup.indexOf('Handbook'))
+  })
+
+  it('shows a collection holding only files, rather than an empty state', () => {
+    const collection = createTestCollection({
+      resources: [createTestFileResource({ name: 'Handbook' })],
+    })
+
+    const markup = renderToStaticMarkup(
+      <CollectionCard collection={collection} {...noopProps} />,
+    )
+
+    expect(markup).toContain('Handbook')
+    expect(markup).not.toContain('No resources saved yet.')
+  })
+
+  it('has one "Add resource" button and no separate "Add file" button', () => {
+    const markup = renderToStaticMarkup(
+      <CollectionCard
+        collection={createTestCollection()}
+        {...noopProps}
+        onAddResource={noop}
+      />,
+    )
+
+    expect(markup).toContain('Add resource')
+    expect(markup).not.toContain('Add file')
+  })
+
+  it('disables "Open all" for a collection with no websites to open', () => {
+    const onlyFiles = createTestCollection({
+      resources: [createTestFileResource()],
+    })
+    const withWebsite = createTestCollection({
+      resources: [createTestWebsiteResource()],
+    })
+
+    const filesMarkup = renderToStaticMarkup(
+      <CollectionCard collection={onlyFiles} {...noopProps} />,
+    )
+    const websiteMarkup = renderToStaticMarkup(
+      <CollectionCard collection={withWebsite} {...noopProps} />,
+    )
+
+    // Match the real `disabled=""` attribute, not the `disabled:` utility
+    // classes that every button carries in its class list.
+    const disabledOpenAll =
+      /<button[^>]*\sdisabled=""[^>]*>(?:(?!<\/button>).)*Open all/s
+
+    expect(filesMarkup).toMatch(disabledOpenAll)
+    expect(websiteMarkup).not.toMatch(disabledOpenAll)
+  })
+
+  it('lets a file be deleted through the same handler as a website', () => {
+    const collection = createTestCollection({
+      resources: [createTestFileResource({ name: 'Handbook' })],
+    })
+
+    const markup = renderToStaticMarkup(
+      <CollectionCard
+        collection={collection}
+        {...noopProps}
+        onDeleteResource={noop}
+      />,
+    )
+
+    expect(markup).toContain('Delete Handbook')
+  })
+
+  it('does not offer to edit a file, since only websites are edited', () => {
+    const collection = createTestCollection({
+      resources: [createTestFileResource({ name: 'Handbook' })],
+    })
+
+    const markup = renderToStaticMarkup(
+      <CollectionCard
+        collection={collection}
+        {...noopProps}
+        onEditResource={noop}
+      />,
+    )
+
+    expect(markup).not.toContain('Edit Handbook')
   })
 
   it('counts file resources in the resource total', () => {
@@ -90,17 +177,6 @@ describe('CollectionCard with file resources', () => {
     expect(markup).toContain('2 resources')
   })
 
-  it('does not show the empty-state message for a collection holding only files', () => {
-    const collection = createTestCollection({
-      resources: [createTestFileResource()],
-    })
-
-    const markup = renderToStaticMarkup(
-      <CollectionCard collection={collection} {...noopProps} />,
-    )
-
-    expect(markup).not.toContain('No resources saved yet.')
-  })
 })
 
 describe('CollectionCard resource scroll fade', () => {

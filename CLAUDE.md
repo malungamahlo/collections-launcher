@@ -34,7 +34,8 @@ confused with each other.
   collections-model helpers/types: `active-tab.adapter.ts` (the URL helper
   `website-url`) and `file-content.adapter.ts` / `indexeddb-file-content.store.ts`
   (the `ResourceId` type). File-resource bytes are stored through
-  `file-content.adapter.ts` in IndexedDB, separate from `chrome.storage.local`.
+  `file-content.adapter.ts` in IndexedDB, separate from `chrome.storage.local`;
+  `file-picker.adapter.ts` wraps the File System Access picker.
 - `src/shared/` — generic UI primitives (`components/ui`), hooks, `lib`, styles.
   Imports nothing from `features/`, `engine/`, or `platform/`.
 - `entrypoints/newtab`, `entrypoints/popup` — composition roots only.

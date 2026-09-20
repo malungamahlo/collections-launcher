@@ -9,9 +9,11 @@ import {
   removeResourceFromCollection,
   updateResourceInCollection,
 } from '../model/collection.operations'
+import type { FileContentAdapter } from '@app/platform/browser/file-content.adapter'
 import type {
   Collection,
   CollectionId,
+  CollectionResource,
   CollectionsState,
   ResourceId,
   WebsiteResource,
@@ -25,6 +27,7 @@ import {
   createEmptyWebsiteResourceFormValues,
   type WebsiteResourceFormValues,
 } from '../components/website-resource-form.types'
+import { removeStoredFileContent } from './remove-file-content'
 
 type WebsiteResourceEditor =
   | { readonly mode: 'create' }
@@ -36,20 +39,29 @@ type WebsiteResourceEditor =
 
 interface PendingResourceDeletion {
   readonly collection: Collection
-  readonly resource: WebsiteResource
+  /** Any resource: deleting is the one operation shared by websites and files. */
+  readonly resource: CollectionResource
 }
 
 interface UseWebsiteResourceManagementOptions {
   readonly state: CollectionsState
   readonly save: (state: CollectionsState) => Promise<void>
+  /**
+   * When given, deleting a file resource also removes its stored content, so
+   * the bytes are not left behind once nothing refers to them.
+   */
+  readonly fileContent?: FileContentAdapter
 }
 
 /**
  * Coordinates website creation, editing, moving, deletion, and persistence.
+ * Deletion also handles file resources, since removing a resource from a
+ * collection is the same operation whichever kind it is.
  */
 export function useWebsiteResourceManagement({
   state,
   save,
+  fileContent,
 }: UseWebsiteResourceManagementOptions) {
   const [editor, setEditor] = useState<WebsiteResourceEditor | null>(null)
   const [formValues, setFormValues] = useState<WebsiteResourceFormValues>(
@@ -216,10 +228,10 @@ export function useWebsiteResourceManagement({
     }
   }
 
-  /** Opens confirmation for one website inside its current collection. */
+  /** Opens confirmation for one resource (website or file) inside its current collection. */
   function requestDelete(
     collection: Collection,
-    resource: WebsiteResource,
+    resource: CollectionResource,
   ): void {
     setDeleteError(undefined)
     setResourceToDelete({ collection, resource })
@@ -232,7 +244,12 @@ export function useWebsiteResourceManagement({
     }
   }
 
-  /** Removes the confirmed website and updates its collection timestamp. */
+  /**
+   * Removes the confirmed resource and updates its collection timestamp. For a
+   * file resource its stored content is removed too, but only *after* the
+   * collection has saved, so a failure can never leave a resource without its
+   * content (see `removeStoredFileContent`).
+   */
   async function confirmDelete(): Promise<void> {
     if (!resourceToDelete) {
       return
@@ -249,9 +266,14 @@ export function useWebsiteResourceManagement({
         Date.now(),
       )
       await save(nextState)
+
+      if (fileContent) {
+        await removeStoredFileContent(fileContent, [resourceToDelete.resource])
+      }
+
       setResourceToDelete(null)
     } catch (error) {
-      console.error('Could not delete website resource', error)
+      console.error('Could not delete resource', error)
       setDeleteError('The resource could not be deleted. Try again.')
     } finally {
       setIsSaving(false)

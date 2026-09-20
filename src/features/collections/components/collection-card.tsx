@@ -30,11 +30,13 @@ import { usePrefersReducedMotion } from '@app/shared/hooks/use-prefers-reduced-m
 import { cn } from '@app/shared/lib/utils'
 import type {
   Collection,
+  CollectionResource,
   ResourceId,
   WebsiteResource,
 } from '../model/collection.types'
 import { emptyCollectionDroppableId } from '../model/resource-drag'
 import { isWebsiteResource } from '../model/resource.guards'
+import { FileResourceItem } from './file-resource-item'
 import { WebsiteResourceItem } from './website-resource-item'
 
 interface CollectionCardProps {
@@ -44,14 +46,16 @@ interface CollectionCardProps {
   readonly onEdit?: (collection: Collection) => void
   readonly onDelete?: (collection: Collection) => void
   readonly onExport?: (collection: Collection) => void
+  /** Opens the one "Add resource" dialog, which covers both websites and files. */
   readonly onAddResource?: (collection: Collection) => void
   readonly onEditResource?: (
     collection: Collection,
     resource: WebsiteResource,
   ) => void
+  /** Deleting is shared by every kind of resource, so this takes any of them. */
   readonly onDeleteResource?: (
     collection: Collection,
-    resource: WebsiteResource,
+    resource: CollectionResource,
   ) => void
   /** Whether dragging (reordering or moving resources) is currently enabled. */
   readonly isDragEnabled?: boolean
@@ -73,7 +77,7 @@ const COLLECTION_ICONS: Readonly<Record<string, LucideIcon>> = {
 const VISIBLE_RESOURCE_ROWS = 5
 
 /**
- * Displays one collection and its website resources.
+ * Displays one collection and its resources — websites and files.
  */
 export function CollectionCard({
   collection,
@@ -93,11 +97,8 @@ export function CollectionCard({
   const titleId = useId()
   const CollectionIcon = COLLECTION_ICONS[collection.icon ?? ''] ?? Folder
   const resourceCount = collection.resources.length
-  // Transitional: only website rows can be rendered so far. A file resource
-  // gets its own row in Phase G of V3; until then none can be created, so this
-  // hides nothing a user can have. (Reordering also needs every resource id to
-  // be rendered, which is another reason Phase G removes this filter.)
-  const websiteResources = collection.resources.filter(isWebsiteResource)
+  // "Open all" launches tabs, and only a website has a URL to open as one.
+  const hasOpenableWebsites = collection.resources.some(isWebsiteResource)
   const resourceLabel =
     resourceCount === 1 ? '1 resource' : `${resourceCount} resources`
   const { setNodeRef: setEmptyDropZoneRef, isOver: isEmptyDropZoneOver } =
@@ -230,7 +231,7 @@ export function CollectionCard({
           <Button
             variant="secondary"
             className="flex-1 gap-2 hover:bg-slate-300"
-            disabled={collection.resources.length === 0}
+            disabled={!hasOpenableWebsites}
             onClick={() => onOpenAll(collection)}
           >
             <ExternalLink className="size-4" aria-hidden="true" />
@@ -247,6 +248,7 @@ export function CollectionCard({
               Add resource
             </Button>
           )}
+
         </div>
       </CardHeader>
 
@@ -266,31 +268,41 @@ export function CollectionCard({
         {collection.resources.length > 0 && (
           <div className="relative">
             <SortableContext
-              items={websiteResources.map(resource => resource.id)}
+              items={collection.resources.map(resource => resource.id)}
               strategy={verticalListSortingStrategy}
             >
               <ul className="scroll-slim max-h-80 space-y-2 overflow-y-auto pr-1">
-                {websiteResources.map(resource => (
-                  <WebsiteResourceItem
-                    key={resource.id}
-                    resource={resource}
-                    onOpen={onOpenResource}
-                    onEdit={
-                      onEditResource
-                        ? currentResource =>
-                            onEditResource(collection, currentResource)
-                        : undefined
-                    }
-                    onDelete={
-                      onDeleteResource
-                        ? currentResource =>
-                            onDeleteResource(collection, currentResource)
-                        : undefined
-                    }
-                    isReorderable={isDragEnabled}
-                    isHighlighted={resource.id === highlightedResourceId}
-                  />
-                ))}
+                {collection.resources.map(resource => {
+                  const handleDelete = onDeleteResource
+                    ? (currentResource: CollectionResource) =>
+                        onDeleteResource(collection, currentResource)
+                    : undefined
+
+                  return isWebsiteResource(resource) ? (
+                    <WebsiteResourceItem
+                      key={resource.id}
+                      resource={resource}
+                      onOpen={onOpenResource}
+                      onEdit={
+                        onEditResource
+                          ? currentResource =>
+                              onEditResource(collection, currentResource)
+                          : undefined
+                      }
+                      onDelete={handleDelete}
+                      isReorderable={isDragEnabled}
+                      isHighlighted={resource.id === highlightedResourceId}
+                    />
+                  ) : (
+                    <FileResourceItem
+                      key={resource.id}
+                      resource={resource}
+                      onDelete={handleDelete}
+                      isReorderable={isDragEnabled}
+                      isHighlighted={resource.id === highlightedResourceId}
+                    />
+                  )
+                })}
               </ul>
             </SortableContext>
 

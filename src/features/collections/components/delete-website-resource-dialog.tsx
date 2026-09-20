@@ -1,11 +1,12 @@
 import type { RefObject } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { Dialog } from '@app/shared/components/ui/dialog'
-import type { Collection, WebsiteResource } from '../model/collection.types'
+import type { Collection, CollectionResource } from '../model/collection.types'
 
 interface DeleteWebsiteResourceDialogProps {
   readonly collection: Collection
-  readonly resource: WebsiteResource
+  /** Any resource: the dialog only needs its name, so it serves websites and files alike. */
+  readonly resource: CollectionResource
   readonly isDeleting: boolean
   readonly errorMessage?: string
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>
@@ -13,7 +14,7 @@ interface DeleteWebsiteResourceDialogProps {
   readonly onClose: () => void
 }
 
-/** Requires confirmation before removing a saved website. */
+/** Requires confirmation before removing a saved resource (website or file). */
 export function DeleteWebsiteResourceDialog({
   collection,
   resource,
