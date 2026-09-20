@@ -158,27 +158,54 @@ describe('inferMimeType', () => {
 })
 
 describe('getFilePickerTypes', () => {
-  it('offers one picker entry per registered kind, labelled', () => {
+  // Each entry becomes its own filter in the native dialog, which opens on the
+  // first. One entry per kind meant only PDFs were listed until the user found
+  // and changed the filter. A single combined entry shows every supported file.
+  it('offers a single combined entry, so the user is never asked to choose a file type', () => {
     const types = getFilePickerTypes()
 
-    expect(types.map(type => type.description)).toEqual(
-      RESOURCE_KINDS.map(kind => kind.label),
+    expect(types).toHaveLength(1)
+    expect(types[0]?.description).toBe('Supported files')
+  })
+
+  it('lists every registered format in that one entry, not just the first kind', () => {
+    const [entry] = getFilePickerTypes()
+
+    for (const kind of RESOURCE_KINDS) {
+      for (const format of kind.formats) {
+        expect(entry?.accept[format.mimeType]).toEqual(format.extensions)
+      }
+    }
+  })
+
+  it('includes the formats that were missing when only PDF was offered', () => {
+    const [entry] = getFilePickerTypes()
+
+    expect(Object.keys(entry?.accept ?? {})).toEqual(
+      expect.arrayContaining([
+        'application/pdf',
+        'text/markdown',
+        DOCX,
+        XLSX,
+        PPTX,
+      ]),
     )
   })
 
-  it('maps each MIME type to its extensions', () => {
-    const pdf = getFilePickerTypes().find(
-      type => type.description === 'PDF document',
-    )
-    const word = getFilePickerTypes().find(
-      type => type.description === 'Word document',
-    )
+  it('maps each MIME type to its extensions, legacy Office formats included', () => {
+    const [entry] = getFilePickerTypes()
 
-    expect(pdf?.accept).toEqual({ 'application/pdf': ['.pdf'] })
-    expect(word?.accept).toEqual({
-      [DOCX]: ['.docx'],
-      'application/msword': ['.doc'],
-    })
+    expect(entry?.accept['application/pdf']).toEqual(['.pdf'])
+    expect(entry?.accept['text/markdown']).toEqual(['.md', '.markdown'])
+    expect(entry?.accept[DOCX]).toEqual(['.docx'])
+    expect(entry?.accept['application/msword']).toEqual(['.doc'])
+  })
+
+  it('offers no more MIME types than the registry has formats', () => {
+    const [entry] = getFilePickerTypes()
+    const formatCount = RESOURCE_KINDS.flatMap(kind => kind.formats).length
+
+    expect(Object.keys(entry?.accept ?? {})).toHaveLength(formatCount)
   })
 
   it('returns fresh arrays, so a caller cannot mutate the registry', () => {

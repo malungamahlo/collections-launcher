@@ -197,14 +197,20 @@ describe('useFileResourceManagement', () => {
       expect(result.current.chosenFile).toBeUndefined()
     })
 
-    it('offers the picker exactly the formats the registry lists', async () => {
+    it('offers the picker one filter covering every supported format, not a choice of types', async () => {
       const { picker } = await openWithPickedFile()
 
       const [types] = picker.pickFile.mock.calls[0] as [
-        Array<{ description: string }>,
+        Array<{ description: string; accept: Record<string, string[]> }>,
       ]
-      expect(types.map(type => type.description)).toContain('PDF document')
-      expect(types.map(type => type.description)).toContain('Word document')
+      expect(types).toHaveLength(1)
+      expect(Object.keys(types[0]?.accept ?? {})).toEqual(
+        expect.arrayContaining([
+          'application/pdf',
+          'text/markdown',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ]),
+      )
     })
 
     it('resolves a Markdown file with no declared type by its extension', async () => {

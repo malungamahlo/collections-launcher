@@ -203,14 +203,29 @@ export interface FilePickerType {
 }
 
 /**
- * The `types` option for `showOpenFilePicker()`: one entry per registered kind,
- * restricting the picker to formats the app knows how to describe.
+ * The `types` option for `showOpenFilePicker()`: a **single** entry covering
+ * every registered format, so the picker restricts the user to files the app
+ * can describe without asking them to choose a file type.
+ *
+ * Each entry in `types` becomes its own filter in the native dialog, and the
+ * dialog opens on the first one. An entry per kind (PDF, Markdown, Word, …)
+ * therefore meant only PDFs were listed until the user found and changed the
+ * filter — and, since the "all files" option is excluded, could not see the
+ * rest at all. One combined entry shows every supported file at once.
+ *
+ * Built from `RESOURCE_KINDS`, so a newly registered format appears in the
+ * picker with no change here.
  */
 export function getFilePickerTypes(): FilePickerType[] {
-  return RESOURCE_KINDS.map(kind => ({
-    description: kind.label,
-    accept: Object.fromEntries(
-      kind.formats.map(format => [format.mimeType, [...format.extensions]]),
-    ),
-  }))
+  return [
+    {
+      description: 'Supported files',
+      accept: Object.fromEntries(
+        RESOURCE_KINDS.flatMap(kind => kind.formats).map(format => [
+          format.mimeType,
+          [...format.extensions],
+        ]),
+      ),
+    },
+  ]
 }
