@@ -11,6 +11,7 @@ A Chrome/Chromium browser extension that organizes websites into purpose-based c
 - **Search** — filter by collection name, resource name, or domain.
 - **Open all** — launch every resource in a collection as tabs in one click.
 - **Export and import** — export a single collection as a `.collectionLauncher` file and send it to yourself or someone else however you like, then import it back through a preview step that shows exactly what will be added before anything is saved. Malformed or unsupported files are rejected safely, and invalid or duplicate entries inside an otherwise-valid file are skipped and reported rather than failing the whole import.
+- **Bookmark import** — turn bookmarks you already have into a collection. Choose a bookmark folder, pick which of its bookmarks to bring in (all start selected), then either create a new collection or add them to an existing one. You see a preview before anything is saved: bookmarks the collection already has are skipped and counted, and bookmarks that can't be imported (like `chrome://` pages) are shown but can't be selected. Your browser's bookmarks are only ever read — never changed.
 
 ## Installing the extension
 
@@ -30,12 +31,13 @@ This extension isn't published to the Chrome Web Store yet, so it's loaded unpac
 
 ### Permissions
 
-The extension requests only two permissions:
+The extension requests only three permissions:
 
 - `storage` — to save your collections locally.
 - `activeTab` — to read the page you're on only when you invoke the popup.
+- `bookmarks` — to read your bookmark folders, but only when you choose **Import bookmarks**, so you can pick which bookmarks to turn into a collection. It is read-only: the extension never changes, adds, or deletes any of your bookmarks, and nothing is sent anywhere.
 
-It does not request access to your browsing history, bookmarks, or any specific website.
+It does not request access to your browsing history or any specific website.
 
 ## Development
 
@@ -70,6 +72,7 @@ Automated tests cover domain logic, storage, and component behavior, but they ca
 - Saving the active page from the toolbar popup, including into a brand-new collection and onto a page that can't be saved (like a `chrome://` page).
 - Exporting a real collection and inspecting the downloaded `.collectionLauncher` file, then re-importing it (into the same or a different profile) and confirming a faithful new collection with a preview step beforehand.
 - Hand-editing an exported file to be malformed (broken JSON, wrong `format`, a future `schemaVersion`) or hostile (a `javascript:` URL, a duplicate entry) and confirming it's rejected or safely skipped, with no change to stored state.
+- Importing bookmarks: on the folder step, pick a real bookmark folder; on the bookmarks step, confirm an internal page (like `chrome://extensions`) is listed but can't be ticked, that Clear disables "Next", and that ticking a subset previews only those. Then import into both a new collection and an existing one that already contains some of the same sites, confirming the duplicates are skipped and counted, no duplicate resource or collection appears, "Back" keeps your earlier choices, and cancelling changes nothing. Afterwards check that your browser's own bookmarks are untouched.
 - That your data is still there after fully restarting the browser.
 - Every primary workflow using only the keyboard.
 
