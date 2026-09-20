@@ -356,6 +356,33 @@ export function addResourceToCollection(
 }
 
 /**
+ * Adds several resources to one collection in a single step and updates the
+ * parent collection timestamp. The combined list (existing resources plus the
+ * new ones) is checked as a whole — resource IDs across all collections, and
+ * name/URL uniqueness within this collection — so if any new resource
+ * collides with an existing one or with another new one, this throws before
+ * producing any state: the batch is added entirely or not at all.
+ */
+export function addResourcesToCollection(
+  state: CollectionsState,
+  collectionId: CollectionId,
+  resources: readonly CollectionResource[],
+  timestamp: Timestamp,
+): CollectionsState {
+  const collection = findCollection(state, collectionId)
+  const updatedCollection: Collection = {
+    ...collection,
+    resources: [...collection.resources, ...resources],
+    updatedAt: timestamp,
+  }
+
+  ensureCollectionResourceIdsAreUnique(state, updatedCollection)
+  ensureCollectionResourcesAreInternallyUnique(updatedCollection)
+
+  return replaceCollection(state, updatedCollection)
+}
+
+/**
  * Replaces an existing resource and updates its parent collection timestamp.
  */
 export function updateResourceInCollection(

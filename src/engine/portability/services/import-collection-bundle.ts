@@ -4,17 +4,33 @@ import {
   type FactoryDependencies,
 } from '@app/features/collections/model/collection.factory'
 import { collectionNamesMatch } from '@app/features/collections/model/collection.validation'
-import { addCollection } from '@app/features/collections/model/collection.operations'
+import {
+  addCollection,
+  addResourcesToCollection,
+} from '@app/features/collections/model/collection.operations'
 import type {
   Collection,
+  CollectionId,
+  CollectionResource,
   CollectionsState,
 } from '@app/features/collections/model/collection.types'
 import { websiteNamesMatch } from '@app/features/collections/model/website-resource.validation'
 import type { BundleResource, CollectionBundle } from '../model/bundle.types'
 import { filterValidBundleResources } from '../validation/bundle.validation'
 
+/** The existing collection an import adds its resources to, instead of creating a new one. */
+export interface ImportTarget {
+  readonly id: CollectionId
+  readonly name: string
+}
+
 /** The outcome of previewing an import before anything is written to state. */
 export interface ImportPreview {
+  /**
+   * When set, the import adds `resources` to this existing collection
+   * instead of creating a new one, and `suggestedName` is just its name.
+   */
+  readonly target?: ImportTarget
   readonly suggestedName: string
   readonly description?: string
   readonly icon?: string
@@ -55,15 +71,23 @@ export interface ResourcePreview {
  * `BundleResource[]` first, then shares this one implementation for
  * per-entry validation and same-URL/same-name deduplication, rather than
  * each source reimplementing it.
+ *
+ * When importing into an existing collection, pass that collection's
+ * resources as `existingResources`: they seed the seen URLs and names, so an
+ * incoming resource the collection already has is skipped and counted as a
+ * duplicate (the existing one wins, matching "first occurrence wins").
  */
 export function buildResourcePreview(
   rawResources: readonly BundleResource[],
+  existingResources: readonly CollectionResource[] = [],
 ): ResourcePreview {
   const { validResources, skippedInvalidCount } =
     filterValidBundleResources(rawResources)
 
-  const seenUrls = new Set<string>()
-  const seenNames: string[] = []
+  const seenUrls = new Set<string>(
+    existingResources.map(resource => resource.url),
+  )
+  const seenNames: string[] = existingResources.map(resource => resource.name)
   const resources: BundleResource[] = []
   let skippedDuplicateCount = 0
 
@@ -117,19 +141,23 @@ export function buildImportPreview(
 }
 
 /**
- * Commits an import preview as one brand-new collection, named by the
- * caller (which may differ from the preview's suggested name if the user
- * renamed it before confirming). Builds the collection and every resource
- * through the existing factories, then writes them with a single
- * `addCollection` call. Nothing before that call touches `state`, so if
- * `addCollection` throws `CollectionOperationError` — most plausibly
- * `DUPLICATE_COLLECTION_NAME` if another collection was given this exact
- * name after the preview was built, or an id collision, astronomically
+ * Commits an import preview: either as one brand-new collection, named by
+ * the caller (which may differ from the preview's suggested name if the
+ * user renamed it before confirming), or — when the preview has a `target`
+ * — by adding its resources to that existing collection, in which case
+ * `chosenName` is ignored. Builds every resource through the existing
+ * factories, then writes them with a single `addCollection` /
+ * `addResourcesToCollection` call. Nothing before that call touches
+ * `state`, so if it throws `CollectionOperationError` — for a new
+ * collection, most plausibly `DUPLICATE_COLLECTION_NAME` if another
+ * collection was given this exact name after the preview was built; for a
+ * target, `COLLECTION_NOT_FOUND` if it was deleted, or a duplicate resource
+ * name/URL if one was added since; or an id collision, astronomically
  * unlikely with generated ids but structurally possible — no partial state
  * is ever produced; the caller should only call `save()` after this
  * returns successfully. Callers should still pre-check
- * `hasCollectionNameConflict` before calling this, so the common case is
- * caught with a friendly message instead of a thrown error.
+ * `hasCollectionNameConflict` before creating a new collection, so the
+ * common case is caught with a friendly message instead of a thrown error.
  */
 export function applyImportPreview(
   state: CollectionsState,
@@ -137,6 +165,25 @@ export function applyImportPreview(
   chosenName: string,
   dependencies?: FactoryDependencies,
 ): CollectionsState {
+  const buildResources = () =>
+    preview.resources.map(resource =>
+      createWebsiteResource(
+        { name: resource.name, url: resource.url },
+        dependencies,
+      ),
+    )
+
+  if (preview.target) {
+    const timestamp = (dependencies?.now ?? Date.now)()
+
+    return addResourcesToCollection(
+      state,
+      preview.target.id,
+      buildResources(),
+      timestamp,
+    )
+  }
+
   const collection = createCollection(
     {
       name: chosenName,
@@ -146,12 +193,6 @@ export function applyImportPreview(
     },
     dependencies,
   )
-  const resources = preview.resources.map(resource =>
-    createWebsiteResource(
-      { name: resource.name, url: resource.url },
-      dependencies,
-    ),
-  )
 
-  return addCollection(state, { ...collection, resources })
+  return addCollection(state, { ...collection, resources: buildResources() })
 }

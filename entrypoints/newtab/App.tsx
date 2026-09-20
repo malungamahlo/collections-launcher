@@ -353,8 +353,10 @@ function App() {
       {bookmarkImport.pickerState.status !== 'closed' && (
         <BookmarkImportDialog
           pickerState={bookmarkImport.pickerState}
+          collections={storedCollections.state.collections}
           fallbackFocusRef={dashboardFallbackFocusRef}
           onSelectFolder={bookmarkImport.selectFolder}
+          onSelectTarget={bookmarkImport.selectTarget}
           onConfirm={bookmarkImport.confirmSelection}
           onClose={bookmarkImport.close}
         />

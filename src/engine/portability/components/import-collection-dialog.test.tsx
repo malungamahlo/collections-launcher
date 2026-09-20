@@ -164,6 +164,7 @@ describe('ImportCollectionDialog', () => {
       status: 'done',
       collectionName: 'Development',
       resourceCount: 3,
+      addedToExisting: false,
     })
 
     expect(
@@ -173,5 +174,110 @@ describe('ImportCollectionDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Done' }))
 
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  describe('when adding to an existing collection', () => {
+    const mergeState: Extract<ImportCollectionState, { status: 'previewing' }> = {
+      status: 'previewing',
+      chosenName: 'Reference',
+      hasNameConflict: false,
+      preview: {
+        target: { id: 'reference', name: 'Reference' },
+        suggestedName: 'Reference',
+        hasNameConflict: false,
+        resources: [{ name: 'GitHub', url: 'https://github.com/' }],
+        skippedDuplicateCount: 0,
+        skippedInvalidCount: 0,
+      },
+    }
+
+    it('names the target in the title and has no collection name field', () => {
+      renderDialog(mergeState)
+
+      expect(screen.getByText('Add to “Reference”')).not.toBeNull()
+      expect(screen.queryByLabelText('Collection name')).toBeNull()
+      expect(screen.queryByDisplayValue('Reference')).toBeNull()
+    })
+
+    it('lists the resources to add and confirms with "Add to collection"', async () => {
+      const user = userEvent.setup()
+      const { onConfirm } = renderDialog(mergeState)
+
+      expect(screen.getByText('1 resource')).not.toBeNull()
+      expect(screen.getByText(/GitHub/)).not.toBeNull()
+
+      await user.click(screen.getByRole('button', { name: 'Add to collection' }))
+
+      expect(onConfirm).toHaveBeenCalledOnce()
+    })
+
+    it('shows the duplicate count for resources the collection already has', () => {
+      renderDialog({
+        ...mergeState,
+        preview: { ...mergeState.preview, skippedDuplicateCount: 2 },
+      })
+
+      expect(screen.getByText(/2 duplicate resources skipped/)).not.toBeNull()
+    })
+
+    it('disables the submit button and explains why when there is nothing new to add', () => {
+      renderDialog({
+        ...mergeState,
+        preview: {
+          ...mergeState.preview,
+          resources: [],
+          skippedDuplicateCount: 3,
+        },
+      })
+
+      const submitButton = screen.getByRole('button', {
+        name: 'Add to collection',
+      }) as HTMLButtonElement
+
+      expect(submitButton.disabled).toBe(true)
+      expect(
+        screen.getByText('There’s nothing new to add to “Reference”.'),
+      ).not.toBeNull()
+    })
+
+    it('shows "Adding…" and a disabled submit button while importing', () => {
+      renderDialog({
+        status: 'importing',
+        preview: mergeState.preview,
+        chosenName: 'Reference',
+      })
+
+      const submitButton = screen.getByRole('button', {
+        name: 'Adding…',
+      }) as HTMLButtonElement
+
+      expect(submitButton.disabled).toBe(true)
+    })
+
+    it('shows the done state as resources added to the collection', () => {
+      renderDialog({
+        status: 'done',
+        collectionName: 'Reference',
+        resourceCount: 3,
+        addedToExisting: true,
+      })
+
+      expect(
+        screen.getByText(/3 resources were added to “Reference”/),
+      ).not.toBeNull()
+    })
+
+    it('uses the singular form in the done state for one resource', () => {
+      renderDialog({
+        status: 'done',
+        collectionName: 'Reference',
+        resourceCount: 1,
+        addedToExisting: true,
+      })
+
+      expect(
+        screen.getByText(/1 resource was added to “Reference”/),
+      ).not.toBeNull()
+    })
   })
 })

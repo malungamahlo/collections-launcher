@@ -3,6 +3,7 @@ import type { BookmarkTreeNode } from '@app/platform/browser/bookmarks.adapter'
 import {
   createTestCollection,
   createTestState,
+  createTestWebsiteResource,
 } from '@app/features/collections/test/collection.fixtures'
 import { buildBookmarkImportPreview } from './import-bookmark-folder'
 
@@ -135,6 +136,78 @@ describe('buildBookmarkImportPreview', () => {
     expect(buildBookmarkImportPreview(folder, state).hasNameConflict).toBe(
       false,
     )
+  })
+
+  describe('with a target collection', () => {
+    const target = createTestCollection({
+      id: 'target',
+      name: 'Reference',
+      resources: [
+        createTestWebsiteResource({
+          name: 'GitHub',
+          url: 'https://github.com/',
+        }),
+      ],
+    })
+
+    it('carries the target and uses its name instead of the folder name', () => {
+      const preview = buildBookmarkImportPreview(
+        createFolder({ title: 'Work' }),
+        createTestState({ collections: [target] }),
+        target,
+      )
+
+      expect(preview.target).toEqual({ id: 'target', name: 'Reference' })
+      expect(preview.suggestedName).toBe('Reference')
+    })
+
+    it('never flags a name conflict, even when the folder name matches another collection', () => {
+      const other = createTestCollection({ id: 'other', name: 'Work' })
+
+      const preview = buildBookmarkImportPreview(
+        createFolder({ title: 'Work' }),
+        createTestState({ collections: [target, other] }),
+        target,
+      )
+
+      expect(preview.hasNameConflict).toBe(false)
+    })
+
+    it('skips bookmarks the target already has by URL or name, counting them as duplicates', () => {
+      const folder = createFolder({
+        children: [
+          { id: '1', title: 'Code hosting', url: 'https://github.com/' },
+          { id: '2', title: 'github', url: 'https://example.com/' },
+          { id: '3', title: 'MDN', url: 'https://developer.mozilla.org/' },
+        ],
+      })
+
+      const preview = buildBookmarkImportPreview(
+        folder,
+        createTestState({ collections: [target] }),
+        target,
+      )
+
+      expect(preview.resources).toEqual([
+        { name: 'MDN', url: 'https://developer.mozilla.org/' },
+      ])
+      expect(preview.skippedDuplicateCount).toBe(2)
+    })
+
+    it('does not skip those same bookmarks when importing as a new collection', () => {
+      const folder = createFolder({
+        children: [{ id: '1', title: 'GitHub', url: 'https://github.com/' }],
+      })
+
+      const preview = buildBookmarkImportPreview(
+        folder,
+        createTestState({ collections: [target] }),
+      )
+
+      expect(preview).not.toHaveProperty('target')
+      expect(preview.resources).toHaveLength(1)
+      expect(preview.skippedDuplicateCount).toBe(0)
+    })
   })
 
   it('never includes description, icon, or color', () => {

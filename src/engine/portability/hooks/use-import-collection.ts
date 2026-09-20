@@ -31,6 +31,8 @@ export type ImportCollectionState =
       readonly status: 'done'
       readonly collectionName: string
       readonly resourceCount: number
+      /** True when the resources were added to an existing collection rather than a new one. */
+      readonly addedToExisting: boolean
     }
   | { readonly status: 'error'; readonly message: string }
 
@@ -50,10 +52,12 @@ const PARSE_ERROR_MESSAGES: Record<
 }
 
 /**
- * Coordinates the file → preview → confirm import workflow: reading the
- * picked file's text, parsing and previewing it, letting the user rename
- * the collection before confirming, and committing exactly one new
- * collection. Nothing is written to state until `confirmImport` succeeds.
+ * Coordinates the source → preview → confirm import workflow: reading a
+ * picked file's text (or taking a preview built elsewhere), previewing it,
+ * letting the user rename a new collection before confirming, and
+ * committing either exactly one new collection or — when the preview targets
+ * an existing collection — the added resources. Nothing is written to state
+ * until `confirmImport` succeeds.
  */
 export function useImportCollection({ state, save }: UseImportCollectionOptions) {
   const [importState, setImportState] = useState<ImportCollectionState>({
@@ -135,14 +139,21 @@ export function useImportCollection({ state, save }: UseImportCollectionOptions)
     })
   }
 
-  /** Validates the chosen name (basic rules, then uniqueness), then commits the previewed import. */
+  /**
+   * Commits the previewed import. For a new collection, first validates the
+   * chosen name (basic rules, then uniqueness); when the preview targets an
+   * existing collection there is no name to choose, so it goes straight to
+   * committing.
+   */
   async function confirmImport(): Promise<void> {
     if (importState.status !== 'previewing') {
       return
     }
 
     const { preview, chosenName } = importState
-    const validationError = validateChosenName(chosenName)
+    const validationError = preview.target
+      ? undefined
+      : validateChosenName(chosenName)
 
     if (validationError) {
       setImportState({ ...importState, nameError: validationError })
@@ -156,8 +167,9 @@ export function useImportCollection({ state, save }: UseImportCollectionOptions)
       await save(nextState)
       setImportState({
         status: 'done',
-        collectionName: chosenName,
+        collectionName: preview.target?.name ?? chosenName,
         resourceCount: preview.resources.length,
+        addedToExisting: preview.target !== undefined,
       })
     } catch (error) {
       if (

@@ -7,6 +7,7 @@ import type { CollectionsState } from '@app/features/collections/model/collectio
 import {
   createTestCollection,
   createTestState,
+  createTestWebsiteResource,
 } from '@app/features/collections/test/collection.fixtures'
 import { useImportCollection } from './use-import-collection'
 import { applyImportPreview } from '../services/import-collection-bundle'
@@ -222,6 +223,7 @@ describe('useImportCollection', () => {
       status: 'done',
       collectionName: 'Development',
       resourceCount: 2,
+      addedToExisting: false,
     })
   })
 
@@ -366,6 +368,79 @@ describe('useImportCollection', () => {
       status: 'done',
       collectionName: 'Bookmarked',
       resourceCount: 1,
+      addedToExisting: false,
+    })
+  })
+
+  describe('when the preview targets an existing collection', () => {
+    const target = createTestCollection({
+      id: 'target',
+      name: 'Reference',
+      resources: [
+        createTestWebsiteResource({
+          id: 'existing',
+          name: 'MDN',
+          url: 'https://developer.mozilla.org/',
+        }),
+      ],
+    })
+    const mergePreview = {
+      target: { id: 'target', name: 'Reference' },
+      suggestedName: 'Reference',
+      hasNameConflict: false,
+      resources: [{ name: 'GitHub', url: 'https://github.com/' }],
+      skippedDuplicateCount: 0,
+      skippedInvalidCount: 0,
+    }
+
+    it('adds the resources to that collection without validating a name, and reports it', async () => {
+      const state = createTestState({ collections: [target] })
+      const save = vi
+        .fn<(nextState: CollectionsState) => Promise<void>>()
+        .mockResolvedValue(undefined)
+      const { result } = renderHook(() => useImportCollection({ state, save }))
+
+      act(() => {
+        result.current.startPreview(mergePreview)
+      })
+      await act(async () => {
+        await result.current.confirmImport()
+      })
+
+      const savedState = save.mock.calls[0]?.[0]
+      expect(savedState?.collections).toHaveLength(1)
+      expect(savedState?.collections[0]?.name).toBe('Reference')
+      expect(savedState?.collections[0]?.resources).toHaveLength(2)
+      expect(result.current.importState).toEqual({
+        status: 'done',
+        collectionName: 'Reference',
+        resourceCount: 1,
+        addedToExisting: true,
+      })
+    })
+
+    it('moves to error without saving when the target collection no longer exists', async () => {
+      const save = vi.fn<(state: CollectionsState) => Promise<void>>()
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
+      const { result } = renderHook(() =>
+        useImportCollection({ state: createTestState(), save }),
+      )
+
+      act(() => {
+        result.current.startPreview(mergePreview)
+      })
+      await act(async () => {
+        await result.current.confirmImport()
+      })
+
+      expect(save).not.toHaveBeenCalled()
+      expect(result.current.importState).toEqual({
+        status: 'error',
+        message: 'The collection could not be imported. Try again.',
+      })
+      consoleError.mockRestore()
     })
   })
 

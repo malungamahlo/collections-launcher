@@ -56,13 +56,26 @@ export function ImportCollectionDialog({
   if (importState.status === 'done') {
     return (
       <Dialog
-        title="Collection imported"
+        title={
+          importState.addedToExisting
+            ? 'Added to collection'
+            : 'Collection imported'
+        }
         fallbackFocusRef={fallbackFocusRef}
         onClose={onClose}
       >
         <p className="text-sm text-muted-foreground">
-          “{importState.collectionName}” was added with{' '}
-          {countLabel(importState.resourceCount, 'resource', 'resources')}.
+          {importState.addedToExisting ? (
+            <>
+              {countLabel(importState.resourceCount, 'resource was', 'resources were')}{' '}
+              added to “{importState.collectionName}”.
+            </>
+          ) : (
+            <>
+              “{importState.collectionName}” was added with{' '}
+              {countLabel(importState.resourceCount, 'resource', 'resources')}.
+            </>
+          )}
         </p>
 
         <div className="mt-5 flex justify-end border-t border-border pt-5">
@@ -75,11 +88,15 @@ export function ImportCollectionDialog({
   }
 
   const { preview, chosenName } = importState
+  const { target } = preview
   const isSubmitting = importState.status === 'importing'
   const nameError =
     importState.status === 'previewing' ? importState.nameError : undefined
   const hasNameConflict =
     importState.status === 'previewing' ? importState.hasNameConflict : false
+  const hasNothingToAdd = target !== undefined && preview.resources.length === 0
+  const idleLabel = target ? 'Add to collection' : 'Import collection'
+  const busyLabel = target ? 'Adding…' : 'Importing…'
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
@@ -88,37 +105,43 @@ export function ImportCollectionDialog({
 
   return (
     <Dialog
-      title="Import collection"
-      description="Review what this file contains before adding it as a new collection."
+      title={target ? `Add to “${target.name}”` : 'Import collection'}
+      description={
+        target
+          ? 'Review what will be added to this collection before anything is saved.'
+          : 'Review what this file contains before adding it as a new collection.'
+      }
       fallbackFocusRef={fallbackFocusRef}
       onClose={onClose}
     >
       <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-        <div className="space-y-2">
-          <Label htmlFor={nameId}>Collection name</Label>
-          <Input
-            id={nameId}
-            value={chosenName}
-            autoComplete="off"
-            autoFocus
-            required
-            aria-invalid={nameError ? 'true' : undefined}
-            aria-describedby={nameError ? nameErrorId : undefined}
-            disabled={isSubmitting}
-            onChange={event => onChosenNameChange(event.target.value)}
-          />
-          {nameError && (
-            <p id={nameErrorId} className="text-sm text-red-700">
-              {nameError}
-            </p>
-          )}
-          {!nameError && hasNameConflict && (
-            <p className="text-sm text-red-700">
-              A collection named “{chosenName}” already exists. Choose a
-              different name to import this collection.
-            </p>
-          )}
-        </div>
+        {!target && (
+          <div className="space-y-2">
+            <Label htmlFor={nameId}>Collection name</Label>
+            <Input
+              id={nameId}
+              value={chosenName}
+              autoComplete="off"
+              autoFocus
+              required
+              aria-invalid={nameError ? 'true' : undefined}
+              aria-describedby={nameError ? nameErrorId : undefined}
+              disabled={isSubmitting}
+              onChange={event => onChosenNameChange(event.target.value)}
+            />
+            {nameError && (
+              <p id={nameErrorId} className="text-sm text-red-700">
+                {nameError}
+              </p>
+            )}
+            {!nameError && hasNameConflict && (
+              <p className="text-sm text-red-700">
+                A collection named “{chosenName}” already exists. Choose a
+                different name to import this collection.
+              </p>
+            )}
+          </div>
+        )}
 
         {preview.description && (
           <p className="text-sm text-muted-foreground">
@@ -154,6 +177,12 @@ export function ImportCollectionDialog({
                 `${countLabel(preview.skippedInvalidCount, 'invalid resource', 'invalid resources')} skipped.`}
             </p>
           )}
+
+          {hasNothingToAdd && (
+            <p className="text-sm text-muted-foreground">
+              There’s nothing new to add to “{target.name}”.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:justify-end">
@@ -166,9 +195,9 @@ export function ImportCollectionDialog({
           </Button>
           <Button
             type="submit"
-            disabled={isSubmitting || hasNameConflict}
+            disabled={isSubmitting || hasNameConflict || hasNothingToAdd}
           >
-            {isSubmitting ? 'Importing…' : 'Import collection'}
+            {isSubmitting ? busyLabel : idleLabel}
           </Button>
         </div>
       </form>

@@ -4,10 +4,12 @@ import { CollectionOperationError } from '@app/features/collections/model/collec
 import {
   createTestCollection,
   createTestState,
+  createTestWebsiteResource,
 } from '@app/features/collections/test/collection.fixtures'
 import {
   applyImportPreview,
   buildImportPreview,
+  buildResourcePreview,
   hasCollectionNameConflict,
   type ImportPreview,
 } from './import-collection-bundle'
@@ -170,6 +172,173 @@ describe('buildImportPreview', () => {
     expect(preview.resources).toEqual([])
     expect(preview.skippedDuplicateCount).toBe(0)
     expect(preview.skippedInvalidCount).toBe(0)
+  })
+})
+
+describe('buildResourcePreview with existing resources', () => {
+  const existing = [
+    createTestWebsiteResource({ name: 'GitHub', url: 'https://github.com/' }),
+  ]
+
+  it('skips an incoming resource whose URL the existing resources already have, counting it as a duplicate', () => {
+    const preview = buildResourcePreview(
+      [
+        { name: 'Code hosting', url: 'github.com' },
+        { name: 'MDN', url: 'https://developer.mozilla.org/' },
+      ],
+      existing,
+    )
+
+    expect(preview.resources).toEqual([
+      { name: 'MDN', url: 'https://developer.mozilla.org/' },
+    ])
+    expect(preview.skippedDuplicateCount).toBe(1)
+  })
+
+  it('skips an incoming resource whose name the existing resources already have, ignoring case', () => {
+    const preview = buildResourcePreview(
+      [{ name: ' github ', url: 'https://example.com/' }],
+      existing,
+    )
+
+    expect(preview.resources).toEqual([])
+    expect(preview.skippedDuplicateCount).toBe(1)
+  })
+
+  it('still deduplicates the incoming resources against each other', () => {
+    const preview = buildResourcePreview(
+      [
+        { name: 'MDN', url: 'https://developer.mozilla.org/' },
+        { name: 'MDN docs', url: 'developer.mozilla.org' },
+      ],
+      existing,
+    )
+
+    expect(preview.resources).toHaveLength(1)
+    expect(preview.skippedDuplicateCount).toBe(1)
+  })
+
+  it('behaves as before when there are no existing resources', () => {
+    const rawResources = [
+      { name: 'GitHub', url: 'https://github.com/' },
+      { name: 'GitHub (dup)', url: 'github.com' },
+    ]
+
+    expect(buildResourcePreview(rawResources)).toEqual(
+      buildResourcePreview(rawResources, []),
+    )
+  })
+})
+
+describe('applyImportPreview into an existing collection', () => {
+  const existingResource = createTestWebsiteResource({
+    id: 'existing-resource',
+    name: 'MDN',
+    url: 'https://developer.mozilla.org/',
+  })
+  const target = createTestCollection({
+    id: 'target',
+    name: 'Reference',
+    resources: [existingResource],
+  })
+  const other = createTestCollection({ id: 'other', name: 'Other' })
+  const preview: ImportPreview = {
+    target: { id: target.id, name: target.name },
+    suggestedName: target.name,
+    hasNameConflict: false,
+    resources: [{ name: 'GitHub', url: 'https://github.com/' }],
+    skippedDuplicateCount: 0,
+    skippedInvalidCount: 0,
+  }
+
+  it('appends the previewed resources to the target and bumps its timestamp', () => {
+    const state = createTestState({ collections: [target, other] })
+
+    const nextState = applyImportPreview(
+      state,
+      preview,
+      'ignored name',
+      fixedDependencies,
+    )
+
+    expect(nextState.collections).toHaveLength(2)
+    expect(nextState.collections[0]).toEqual({
+      ...target,
+      resources: [
+        existingResource,
+        {
+          id: 'generated-id',
+          type: 'website',
+          name: 'GitHub',
+          url: 'https://github.com/',
+          createdAt: 2_000,
+          updatedAt: 2_000,
+        },
+      ],
+      updatedAt: 2_000,
+    })
+  })
+
+  it('leaves other collections and the original state untouched', () => {
+    const state = createTestState({ collections: [target, other] })
+
+    const nextState = applyImportPreview(
+      state,
+      preview,
+      target.name,
+      fixedDependencies,
+    )
+
+    expect(nextState.collections[1]).toBe(other)
+    expect(state.collections[0]).toBe(target)
+    expect(target.resources).toEqual([existingResource])
+  })
+
+  it('does not create a collection or use the chosen name', () => {
+    const state = createTestState({ collections: [target] })
+
+    const nextState = applyImportPreview(
+      state,
+      preview,
+      'A brand new name',
+      fixedDependencies,
+    )
+
+    expect(nextState.collections).toHaveLength(1)
+    expect(nextState.collections[0]?.name).toBe('Reference')
+  })
+
+  it('throws COLLECTION_NOT_FOUND when the target was deleted after the preview', () => {
+    const state = createTestState({ collections: [other] })
+
+    expect(() =>
+      applyImportPreview(state, preview, target.name, fixedDependencies),
+    ).toThrowError(
+      expect.objectContaining({ code: 'COLLECTION_NOT_FOUND' }),
+    )
+  })
+
+  it('throws, leaving state unchanged, when the target gained a duplicate since the preview', () => {
+    const state = createTestState({
+      collections: [
+        {
+          ...target,
+          resources: [
+            existingResource,
+            createTestWebsiteResource({
+              id: 'added-later',
+              name: 'GitHub',
+              url: 'https://github.com/',
+            }),
+          ],
+        },
+      ],
+    })
+
+    expect(() =>
+      applyImportPreview(state, preview, target.name, fixedDependencies),
+    ).toThrow(CollectionOperationError)
+    expect(state.collections[0]?.resources).toHaveLength(2)
   })
 })
 

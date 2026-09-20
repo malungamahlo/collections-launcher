@@ -3,6 +3,8 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Collection } from '@app/features/collections/model/collection.types'
+import { createTestCollection } from '@app/features/collections/test/collection.fixtures'
 import type { BookmarkTreeNode } from '@app/platform/browser/bookmarks.adapter'
 import type { BookmarkPickerState } from '../hooks/use-bookmark-import'
 import { BookmarkImportDialog } from './bookmark-import-dialog'
@@ -23,21 +25,25 @@ const tree: readonly BookmarkTreeNode[] = [
 
 function renderDialog(
   pickerState: Exclude<BookmarkPickerState, { status: 'closed' }>,
+  collections: readonly Collection[] = [],
 ) {
   const onSelectFolder = vi.fn()
+  const onSelectTarget = vi.fn()
   const onConfirm = vi.fn()
   const onClose = vi.fn()
 
   render(
     <BookmarkImportDialog
       pickerState={pickerState}
+      collections={collections}
       onSelectFolder={onSelectFolder}
+      onSelectTarget={onSelectTarget}
       onConfirm={onConfirm}
       onClose={onClose}
     />,
   )
 
-  return { onSelectFolder, onConfirm, onClose }
+  return { onSelectFolder, onSelectTarget, onConfirm, onClose }
 }
 
 function getPreviewButton(): HTMLButtonElement {
@@ -89,6 +95,72 @@ describe('BookmarkImportDialog', () => {
     await user.click(screen.getByText('Work'))
 
     expect(onSelectFolder).toHaveBeenCalledWith(workFolder)
+  })
+
+  describe('destination collection', () => {
+    const collections = [
+      createTestCollection({ id: 'reference', name: 'Reference' }),
+      createTestCollection({ id: 'reading', name: 'Reading list' }),
+    ]
+
+    function getDestinationSelect(): HTMLSelectElement {
+      return screen.getByLabelText('Add to') as HTMLSelectElement
+    }
+
+    it('offers a new collection first, then each existing collection', () => {
+      renderDialog({ status: 'picking', tree }, collections)
+
+      const optionLabels = Array.from(getDestinationSelect().options).map(
+        option => option.textContent,
+      )
+
+      expect(optionLabels).toEqual([
+        'New collection (named after the folder)',
+        'Reference',
+        'Reading list',
+      ])
+    })
+
+    it('defaults to a new collection', () => {
+      renderDialog({ status: 'picking', tree }, collections)
+
+      expect(getDestinationSelect().value).toBe('')
+    })
+
+    it('shows the currently selected collection', () => {
+      renderDialog(
+        { status: 'picking', tree, selectedTargetId: 'reading' },
+        collections,
+      )
+
+      expect(getDestinationSelect().value).toBe('reading')
+    })
+
+    it('reports the chosen collection, and undefined when switching back to a new one', async () => {
+      const user = userEvent.setup()
+      const { onSelectTarget } = renderDialog(
+        { status: 'picking', tree, selectedTargetId: 'reference' },
+        collections,
+      )
+
+      await user.selectOptions(getDestinationSelect(), 'reading')
+      await user.selectOptions(getDestinationSelect(), '')
+
+      expect(onSelectTarget).toHaveBeenNthCalledWith(1, 'reading')
+      expect(onSelectTarget).toHaveBeenNthCalledWith(2, undefined)
+    })
+
+    it('hides the destination choice when there are no collections to add to', () => {
+      renderDialog({ status: 'picking', tree })
+
+      expect(screen.queryByLabelText('Add to')).toBeNull()
+    })
+
+    it('hides the destination choice while the bookmarks are loading', () => {
+      renderDialog({ status: 'loading' }, collections)
+
+      expect(screen.queryByLabelText('Add to')).toBeNull()
+    })
   })
 
   it('closes on Cancel', async () => {

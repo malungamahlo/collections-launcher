@@ -2,7 +2,12 @@
 
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createTestState } from '@app/features/collections/test/collection.fixtures'
+import type { CollectionsState } from '@app/features/collections/model/collection.types'
+import {
+  createTestCollection,
+  createTestState,
+  createTestWebsiteResource,
+} from '@app/features/collections/test/collection.fixtures'
 import type {
   BookmarksAdapter,
   BookmarkTreeNode,
@@ -175,6 +180,138 @@ describe('useBookmarkImport', () => {
       skippedInvalidCount: 1,
     })
     expect(result.current.pickerState).toEqual({ status: 'closed' })
+  })
+
+  describe('choosing a destination collection', () => {
+    const reference = createTestCollection({
+      id: 'reference',
+      name: 'Reference',
+      resources: [
+        createTestWebsiteResource({
+          name: 'GitHub',
+          url: 'https://github.com/',
+        }),
+      ],
+    })
+
+    async function openAndSelectFolder(
+      state: CollectionsState,
+      onPreviewReady = vi.fn(),
+    ) {
+      const rendered = renderHook(() =>
+        useBookmarkImport({
+          adapter: createAdapter(vi.fn().mockResolvedValue(tree)),
+          state,
+          onPreviewReady,
+        }),
+      )
+
+      await act(async () => {
+        await rendered.result.current.open()
+      })
+      act(() => {
+        rendered.result.current.selectFolder(workFolder)
+      })
+
+      return { ...rendered, onPreviewReady }
+    }
+
+    it('records the selected target while picking, and clears it again', async () => {
+      const { result } = await openAndSelectFolder(
+        createTestState({ collections: [reference] }),
+      )
+
+      act(() => {
+        result.current.selectTarget('reference')
+      })
+
+      expect(result.current.pickerState).toMatchObject({
+        status: 'picking',
+        selectedTargetId: 'reference',
+      })
+
+      act(() => {
+        result.current.selectTarget(undefined)
+      })
+
+      expect(result.current.pickerState).toMatchObject({
+        status: 'picking',
+        selectedTargetId: undefined,
+      })
+    })
+
+    it('imports as a new collection by default', async () => {
+      const { result, onPreviewReady } = await openAndSelectFolder(
+        createTestState({ collections: [reference] }),
+      )
+
+      act(() => {
+        result.current.confirmSelection()
+      })
+
+      expect(onPreviewReady.mock.calls[0]?.[0]).not.toHaveProperty('target')
+      expect(onPreviewReady.mock.calls[0]?.[0]).toMatchObject({
+        suggestedName: 'Work',
+      })
+    })
+
+    it('builds a preview into the chosen collection, skipping bookmarks it already has', async () => {
+      const { result, onPreviewReady } = await openAndSelectFolder(
+        createTestState({ collections: [reference] }),
+      )
+
+      act(() => {
+        result.current.selectTarget('reference')
+      })
+      act(() => {
+        result.current.confirmSelection()
+      })
+
+      expect(onPreviewReady).toHaveBeenCalledOnce()
+      expect(onPreviewReady.mock.calls[0]?.[0]).toMatchObject({
+        target: { id: 'reference', name: 'Reference' },
+        suggestedName: 'Reference',
+        resources: [],
+        skippedDuplicateCount: 1,
+      })
+      expect(result.current.pickerState).toEqual({ status: 'closed' })
+    })
+
+    it('falls back to a new collection and stays on the picker when the chosen collection was deleted', async () => {
+      const onPreviewReady = vi.fn()
+      let state = createTestState({ collections: [reference] })
+      const { result, rerender } = renderHook(() =>
+        useBookmarkImport({
+          adapter: createAdapter(vi.fn().mockResolvedValue(tree)),
+          state,
+          onPreviewReady,
+        }),
+      )
+
+      await act(async () => {
+        await result.current.open()
+      })
+      act(() => {
+        result.current.selectFolder(workFolder)
+      })
+      act(() => {
+        result.current.selectTarget('reference')
+      })
+
+      state = createTestState({ collections: [] })
+      rerender()
+
+      act(() => {
+        result.current.confirmSelection()
+      })
+
+      expect(onPreviewReady).not.toHaveBeenCalled()
+      expect(result.current.pickerState).toMatchObject({
+        status: 'picking',
+        selectedFolder: workFolder,
+        selectedTargetId: undefined,
+      })
+    })
   })
 
   it('does nothing when confirmed without a selected folder', async () => {
