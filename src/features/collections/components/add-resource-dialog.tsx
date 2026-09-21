@@ -43,16 +43,30 @@ export function AddResourceDialog({
 }: AddResourceDialogProps) {
   const groupName = useId()
   const radioRefs = useRef<Partial<Record<AddResourceType, HTMLInputElement | null>>>({})
+  const formRef = useRef<HTMLDivElement>(null)
   const hasSwitchedRef = useRef(false)
 
-  // Each form focuses its own first field when it appears. That is right when
-  // the dialog opens, but after a *switch* it would pull focus off the radio a
-  // keyboard user has just arrowed onto, breaking arrow-key navigation. So,
-  // once the user has switched, keep focus on the selected radio.
+  // Runs after the shared Dialog has opened the native `<dialog>` (a child's
+  // effect runs before its parent's, and the Dialog is this component's child).
+  //
+  // On open: the native dialog focuses its *first focusable element*, which is
+  // now the type switch, not the form — so put focus on the form's first field
+  // (the name field for a website, "Choose file…" for a file), as the dialog
+  // did before it had a switch. A form's own `autoFocus` can't do this: it runs
+  // before the dialog is open, when nothing inside it can take focus yet.
+  //
+  // After a *switch*: the new form appears and would pull focus off the radio a
+  // keyboard user has just arrowed onto, breaking arrow-key navigation, so keep
+  // focus on the selected radio instead.
   useEffect(() => {
     if (hasSwitchedRef.current) {
       radioRefs.current[type]?.focus()
+      return
     }
+
+    formRef.current
+      ?.querySelector<HTMLElement>('input, select, textarea, button')
+      ?.focus()
   }, [type])
 
   return (
@@ -92,7 +106,7 @@ export function AddResourceDialog({
         ))}
       </div>
 
-      {type === 'website' ? websiteForm : fileForm}
+      <div ref={formRef}>{type === 'website' ? websiteForm : fileForm}</div>
     </Dialog>
   )
 }

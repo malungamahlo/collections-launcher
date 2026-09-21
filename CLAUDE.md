@@ -52,6 +52,43 @@ no jest-dom matchers — use plain assertions; browser APIs come from
 `wxt build`), `npm run start` (managed Chromium with live reload). On Windows use
 `npm.cmd` if the `npm.ps1` shim is blocked.
 
+## End-to-end tests (Playwright)
+
+Live **outside this repo**, in a sibling project:
+`C:\Users\Malunga Mahlo\Documents\Malunga\Projects\playwright-tests` (Playwright +
+TypeScript, its own `package.json`, not a git repo). They load the **built**
+extension (`.output/chrome-mv3`) into a fresh throwaway Chromium profile per test —
+never the user's real profile — so run `npm run build` here first, then run the tests
+from that folder.
+
+- **Test documents** come from
+  `C:\Users\Malunga Mahlo\Documents\Malunga\Projects\Collection Notes\Tests` (today: a
+  Markdown file, a PDF, and a legacy Word `.doc`). `tests/add-files.spec.ts` makes one
+  test per supported file in that folder, so adding a file there adds a test.
+- **Exported collections** are written to, and imported back from,
+  `...\Collection Notes\Tests\exports` (a subfolder, so generated `.collectionLauncher`
+  files never mix with the source documents). `paths.ts` defines all three paths and
+  the env vars that override them: `EXTENSION_PATH`, `TEST_FOLDER`, `EXPORTS_DIR`.
+- **Commands** (run in `playwright-tests`): `npm test`, `npm run report`,
+  `npm run typecheck`, `npm run build:extension` (builds this repo); set
+  `$env:HEADED = 1` to watch. `npx playwright install chromium` fetches the browser.
+- **Playwright uses its bundled Chromium**, not Chrome — recent branded Chrome no longer
+  honours `--load-extension`. The extension has no service worker, so its ID is read
+  from where `chrome://newtab/` redirects.
+- **Playwright cannot operate the native file dialog** (`showOpenFilePicker`).
+  `helpers/file-picker.ts` replaces it with a real Origin-Private-File-System handle for
+  the test document. That exercises real IndexedDB storage of a handle, but **not the
+  native dialog or which file types it lists** — verify that by hand.
+- **Screenshots for the user to review** go to `playwright-tests\screenshots\<name>\`
+  (each folder has an `INDEX.md` with captions), written by `helpers/screenshots.ts`;
+  `tests/phase-g-verification.spec.ts` is the model. When finishing a phase, verify it in
+  real Chromium with a spec like that and **look at the screenshots yourself** — a passing
+  assertion does not prove it looks right, and this found real bugs that unit tests
+  (a fake DOM) could not: e.g. the native `<dialog>` focuses its *first focusable element*,
+  so a form's `autoFocus` does not work inside a dialog.
+- `test.fixme` in `export-import.spec.ts` records a standing requirement: an export must
+  carry file resources' content, not just websites (V3 Part 3, not built yet).
+
 ## Docs workflow
 
 `plans/` and `documentation/` are gitignored and local.
