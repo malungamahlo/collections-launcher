@@ -14,7 +14,12 @@ export type ViewerStrategy =
   | 'native-pdf'
   /** Rendered as HTML in the app. */
   | 'render-markdown'
-  /** Handed to the OS's installed application. The default for everything else. */
+  /**
+   * Meant for the OS's installed application — the default for everything else.
+   * An extension cannot open a file in another app without first saving a copy,
+   * which this app does not do, so today the viewer only explains that such a
+   * file cannot be previewed here (see `useOpenFileResource`).
+   */
   | 'open-externally'
 
 /**
@@ -54,9 +59,9 @@ export interface ResourceKind {
 export const UNKNOWN_MIME_TYPE = 'application/octet-stream'
 
 /**
- * What any file the registry doesn't list resolves to: a generic file that is
- * opened by the OS's installed application. Also what a future format gets
- * until it is deliberately given its own entry.
+ * What any file the registry doesn't list resolves to: a generic file with no
+ * in-app viewer (`open-externally`). Also what a future format gets until it is
+ * deliberately given its own entry.
  */
 export const DEFAULT_RESOURCE_KIND: ResourceKind = {
   id: 'file',

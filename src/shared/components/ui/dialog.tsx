@@ -5,11 +5,14 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
+import { cn } from '@app/shared/lib/utils'
 
 interface DialogProps {
   readonly title: string
   readonly description?: string
   readonly children: ReactNode
+  /** `wide` is for content that needs room, such as a document viewer. */
+  readonly size?: 'default' | 'wide'
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>
   readonly onClose: () => void
 }
@@ -21,6 +24,7 @@ export function Dialog({
   title,
   description,
   children,
+  size = 'default',
   fallbackFocusRef,
   onClose,
 }: DialogProps) {
@@ -74,7 +78,12 @@ export function Dialog({
       ref={dialogRef}
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
-      className="m-auto w-[min(36rem,calc(100%-2rem))] rounded-2xl border border-border bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-slate-950/55 backdrop:backdrop-blur-[2px]"
+      className={cn(
+        'm-auto rounded-2xl border border-border bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-slate-950/55 backdrop:backdrop-blur-[2px]',
+        size === 'wide'
+          ? 'w-[min(64rem,calc(100%-2rem))]'
+          : 'w-[min(36rem,calc(100%-2rem))]',
+      )}
       onCancel={event => {
         event.preventDefault()
         onClose()

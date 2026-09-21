@@ -18,6 +18,7 @@ import type {
   Collection,
   CollectionId,
   CollectionResource,
+  FileResource,
   ResourceId,
   WebsiteResource,
 } from '../model/collection.types'
@@ -26,6 +27,7 @@ import { CollectionCard } from './collection-card'
 interface CollectionGridProps {
   readonly collections: readonly Collection[]
   readonly onOpenResource: (resource: WebsiteResource) => void
+  readonly onOpenFile?: (resource: FileResource) => void
   readonly onOpenAll: (collection: Collection) => void
   readonly onEditCollection?: (collection: Collection) => void
   readonly onDeleteCollection?: (collection: Collection) => void
@@ -66,6 +68,7 @@ const noop = () => undefined
 export function CollectionGrid({
   collections,
   onOpenResource,
+  onOpenFile,
   onOpenAll,
   onEditCollection,
   onDeleteCollection,
@@ -127,6 +130,7 @@ export function CollectionGrid({
       key={collection.id}
       collection={collection}
       onOpenResource={onOpenResource}
+      onOpenFile={onOpenFile}
       onOpenAll={onOpenAll}
       onEdit={onEditCollection}
       onDelete={onDeleteCollection}

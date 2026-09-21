@@ -36,6 +36,22 @@ confused with each other.
   (the `ResourceId` type). File-resource bytes are stored through
   `file-content.adapter.ts` in IndexedDB, separate from `chrome.storage.local`;
   `file-picker.adapter.ts` wraps the File System Access picker.
+- **Opening a file resource** (`hooks/use-open-file-resource.ts`,
+  `components/file-viewer-dialog.tsx`, `components/markdown-view.tsx`): a file row opens
+  a viewer dialog, chosen by the registry's viewer strategy — a PDF in the browser's own
+  viewer (an object URL in a frame, revoked when it closes), Markdown through
+  `react-markdown`. The Markdown document is untrusted: raw HTML is dropped, only
+  http/https/mailto links survive, and images are never loaded. The renderer is
+  `React.lazy`-loaded so it stays out of the new-tab entry chunk — keep it that way.
+- **Never make an extra copy of a user's file.** A locally added file is stored as a
+  reference (a `FileSystemFileHandle`), and opening one only reads it — nothing is written
+  to disk. Do not add download-to-open (handing a file to the OS through
+  `FileDownloadAdapter`, or a `downloads` permission): sync is planned and duplicates are
+  unwanted. An extension cannot open a file in another app without a copy, so Word, Excel,
+  and PowerPoint files are *held but not openable* — the viewer explains this. The only
+  no-copy route is a companion program over `nativeMessaging`, which the user has not
+  chosen; raise that trade-off rather than quietly downloading. (See
+  `documentation/Logic Doc/v3/10-phase-h-opening-a-file-resource.md`.)
 - `src/shared/` — generic UI primitives (`components/ui`), hooks, `lib`, styles.
   Imports nothing from `features/`, `engine/`, or `platform/`.
 - `entrypoints/newtab`, `entrypoints/popup` — composition roots only.
@@ -81,7 +97,10 @@ from that folder.
   native dialog or which file types it lists** — verify that by hand.
 - **Screenshots for the user to review** go to `playwright-tests\screenshots\<name>\`
   (each folder has an `INDEX.md` with captions), written by `helpers/screenshots.ts`;
-  `tests/phase-g-verification.spec.ts` is the model. When finishing a phase, verify it in
+  `tests/phase-g-verification.spec.ts` is the model (`phase-h-verification.spec.ts` also
+  crafts hostile and oversized documents in a temp folder — never the test folder — and
+  asserts that nothing was downloaded or fetched; `helpers/page-problems.ts` makes a test
+  fail on any page error or `console.error`). When finishing a phase, verify it in
   real Chromium with a spec like that and **look at the screenshots yourself** — a passing
   assertion does not prove it looks right, and this found real bugs that unit tests
   (a fake DOM) could not: e.g. the native `<dialog>` focuses its *first focusable element*,

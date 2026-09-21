@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ExternalLink, GripVertical, Trash2 } from 'lucide-react'
+import { Eye, GripVertical, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { usePrefersReducedMotion } from '@app/shared/hooks/use-prefers-reduced-motion'
@@ -12,7 +12,7 @@ import { RESOURCE_ICONS } from './resource-icons'
 
 interface FileResourceItemProps {
   readonly resource: FileResource
-  /** When given, the row can be opened; without it the row is display-only. */
+  /** When given, the row can be opened in the viewer; without it the row is display-only. */
   readonly onOpen?: (resource: FileResource) => void
   readonly onDelete?: (resource: FileResource) => void
   readonly isReorderable?: boolean
@@ -58,7 +58,7 @@ export function FileResourceItem({
       </span>
 
       {onOpen && (
-        <ExternalLink
+        <Eye
           className="size-4 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />

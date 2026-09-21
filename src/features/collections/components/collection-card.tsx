@@ -31,6 +31,7 @@ import { cn } from '@app/shared/lib/utils'
 import type {
   Collection,
   CollectionResource,
+  FileResource,
   ResourceId,
   WebsiteResource,
 } from '../model/collection.types'
@@ -42,6 +43,8 @@ import { WebsiteResourceItem } from './website-resource-item'
 interface CollectionCardProps {
   readonly collection: Collection
   readonly onOpenResource: (resource: WebsiteResource) => void
+  /** Opens a file resource; without it, file rows are display-only. */
+  readonly onOpenFile?: (resource: FileResource) => void
   readonly onOpenAll: (collection: Collection) => void
   readonly onEdit?: (collection: Collection) => void
   readonly onDelete?: (collection: Collection) => void
@@ -82,6 +85,7 @@ const VISIBLE_RESOURCE_ROWS = 5
 export function CollectionCard({
   collection,
   onOpenResource,
+  onOpenFile,
   onOpenAll,
   onEdit,
   onDelete,
@@ -297,6 +301,7 @@ export function CollectionCard({
                     <FileResourceItem
                       key={resource.id}
                       resource={resource}
+                      onOpen={onOpenFile}
                       onDelete={handleDelete}
                       isReorderable={isDragEnabled}
                       isHighlighted={resource.id === highlightedResourceId}

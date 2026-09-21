@@ -11,6 +11,7 @@ import { DeleteWebsiteResourceDialog } from '@app/features/collections/component
 import { NoSearchResultsEmptyState } from '@app/features/collections/components/no-search-results-empty-state'
 import { AddResourceDialog } from '@app/features/collections/components/add-resource-dialog'
 import { FileResourceForm } from '@app/features/collections/components/file-resource-form'
+import { FileViewerDialog } from '@app/features/collections/components/file-viewer-dialog'
 import { WebsiteResourceForm } from '@app/features/collections/components/website-resource-form'
 import { WebsiteResourceFormDialog } from '@app/features/collections/components/website-resource-form-dialog'
 import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/sample-collections'
@@ -20,6 +21,7 @@ import { useCollectionSearch } from '@app/features/collections/hooks/use-collect
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
 import { useAddResource } from '@app/features/collections/hooks/use-add-resource'
 import { useFileResourceManagement } from '@app/features/collections/hooks/use-file-resource-management'
+import { useOpenFileResource } from '@app/features/collections/hooks/use-open-file-resource'
 import { useResourceMove } from '@app/features/collections/hooks/use-resource-move'
 import { useResourceReorder } from '@app/features/collections/hooks/use-resource-reorder'
 import { useWebsiteResourceManagement } from '@app/features/collections/hooks/use-website-resource-management'
@@ -80,6 +82,8 @@ function App() {
     files: fileResourceManagement,
     collections: storedCollections.state.collections,
   })
+  // Opening a file resource shows it in a viewer; websites still open as tabs.
+  const openFile = useOpenFileResource({ fileContent: fileContentAdapter })
   const resourceReorder = useResourceReorder({
     state: storedCollections.state,
     save: storedCollections.save,
@@ -276,6 +280,11 @@ function App() {
             <CollectionGrid
               collections={search.filteredCollections}
               onOpenResource={handleOpenResource}
+              onOpenFile={
+                isDevelopmentPreview
+                  ? undefined
+                  : resource => void openFile.open(resource)
+              }
               onOpenAll={handleOpenAll}
               onEditCollection={
                 isDevelopmentPreview ? undefined : management.openEdit
@@ -408,6 +417,15 @@ function App() {
               onCancel={addResource.close}
             />
           }
+        />
+      )}
+
+      {openFile.state.status !== 'closed' && (
+        <FileViewerDialog
+          state={openFile.state}
+          fallbackFocusRef={dashboardFallbackFocusRef}
+          onRetry={openFile.retry}
+          onClose={openFile.close}
         />
       )}
 

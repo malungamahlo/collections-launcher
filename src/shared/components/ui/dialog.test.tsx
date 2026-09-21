@@ -44,6 +44,32 @@ function DialogHarness({ removeTriggerOnClose = false }) {
   )
 }
 
+describe('Dialog size', () => {
+  it('is the standard width by default', () => {
+    render(
+      <Dialog title="Standard" onClose={() => undefined}>
+        <p>Body</p>
+      </Dialog>,
+    )
+
+    const classes = screen.getByRole('dialog').className
+    expect(classes).toContain('w-[min(36rem,calc(100%-2rem))]')
+    expect(classes).not.toContain('64rem')
+  })
+
+  it('is wider when the content needs room', () => {
+    render(
+      <Dialog title="Wide" size="wide" onClose={() => undefined}>
+        <p>Body</p>
+      </Dialog>,
+    )
+
+    const classes = screen.getByRole('dialog').className
+    expect(classes).toContain('w-[min(64rem,calc(100%-2rem))]')
+    expect(classes).not.toContain('36rem')
+  })
+})
+
 describe('Dialog focus behavior', () => {
   it('moves focus into the dialog and restores it to the trigger', async () => {
     const user = userEvent.setup()

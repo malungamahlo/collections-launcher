@@ -2,10 +2,9 @@
  * The largest file that can be added as a resource: 100 MB.
  *
  * A locally added file is stored as a reference, so this does not bound what
- * the extension stores. It bounds what opening a file costs — handing a file
- * to the OS's installed application means reading its bytes into memory — and
- * it is the same ceiling that keeps a future attachment bundle from growing
- * without limit.
+ * the extension stores. It bounds what opening a file costs — a PDF is loaded
+ * whole into the browser's viewer — and it is the same ceiling that keeps a
+ * future attachment bundle from growing without limit.
  */
 export const MAX_FILE_RESOURCE_SIZE_BYTES = 100 * 1024 * 1024
 
