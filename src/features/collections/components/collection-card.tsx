@@ -45,6 +45,8 @@ interface CollectionCardProps {
   readonly onOpenResource: (resource: WebsiteResource) => void
   /** Opens a file resource; without it, file rows are display-only. */
   readonly onOpenFile?: (resource: FileResource) => void
+  /** Saves a copy of a file resource; without it, file rows offer no save. */
+  readonly onSaveFile?: (resource: FileResource) => void
   readonly onOpenAll: (collection: Collection) => void
   readonly onEdit?: (collection: Collection) => void
   readonly onDelete?: (collection: Collection) => void
@@ -86,6 +88,7 @@ export function CollectionCard({
   collection,
   onOpenResource,
   onOpenFile,
+  onSaveFile,
   onOpenAll,
   onEdit,
   onDelete,
@@ -302,6 +305,7 @@ export function CollectionCard({
                       key={resource.id}
                       resource={resource}
                       onOpen={onOpenFile}
+                      onSave={onSaveFile}
                       onDelete={handleDelete}
                       isReorderable={isDragEnabled}
                       isHighlighted={resource.id === highlightedResourceId}

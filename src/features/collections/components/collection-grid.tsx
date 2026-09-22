@@ -28,6 +28,7 @@ interface CollectionGridProps {
   readonly collections: readonly Collection[]
   readonly onOpenResource: (resource: WebsiteResource) => void
   readonly onOpenFile?: (resource: FileResource) => void
+  readonly onSaveFile?: (resource: FileResource) => void
   readonly onOpenAll: (collection: Collection) => void
   readonly onEditCollection?: (collection: Collection) => void
   readonly onDeleteCollection?: (collection: Collection) => void
@@ -69,6 +70,7 @@ export function CollectionGrid({
   collections,
   onOpenResource,
   onOpenFile,
+  onSaveFile,
   onOpenAll,
   onEditCollection,
   onDeleteCollection,
@@ -131,6 +133,7 @@ export function CollectionGrid({
       collection={collection}
       onOpenResource={onOpenResource}
       onOpenFile={onOpenFile}
+      onSaveFile={onSaveFile}
       onOpenAll={onOpenAll}
       onEdit={onEditCollection}
       onDelete={onDeleteCollection}

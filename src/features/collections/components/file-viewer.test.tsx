@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { OpenFileViewerState } from '../hooks/use-open-file-resource'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { FileViewerState } from '../hooks/use-file-viewer'
+import type { FileResource } from '../model/collection.types'
 import { createTestFileResource } from '../test/collection.fixtures'
-import { FileViewerDialog } from './file-viewer-dialog'
+import { FileViewer } from './file-viewer'
 
 // The URL the mocked `createObjectURL` hands out. happy-dom tries to load a
 // frame's `src` and cannot fetch a `blob:` URL, but treats `about:blank` as
@@ -14,6 +15,14 @@ const FRAME_URL = 'about:blank'
 
 const createObjectURL = vi.fn()
 const revokeObjectURL = vi.fn()
+
+// The viewer loads its Markdown renderer on demand. The first import has to
+// transform the whole Markdown toolchain, which can take several seconds when
+// the machine is busy running every test file at once, so do it once up front
+// rather than inside whichever test happens to need it first.
+beforeAll(async () => {
+  await import('./markdown-view')
+}, 60_000)
 
 beforeEach(() => {
   createObjectURL.mockReset().mockReturnValue(FRAME_URL)
@@ -32,49 +41,73 @@ const PDF = createTestFileResource({
 })
 
 function renderViewer(
-  state: OpenFileViewerState,
-  handlers: { onRetry?: () => void; onClose?: () => void } = {},
+  state: FileViewerState,
+  handlers: {
+    resource?: FileResource
+    saveError?: string
+    onRetry?: () => void
+    onSave?: () => void
+  } = {},
 ) {
   return render(
-    <FileViewerDialog
+    <FileViewer
+      resource={handlers.resource ?? PDF}
       state={state}
+      saveError={handlers.saveError}
       onRetry={handlers.onRetry ?? (() => undefined)}
-      onClose={handlers.onClose ?? (() => undefined)}
+      onSave={handlers.onSave ?? (() => undefined)}
     />,
   )
 }
 
-describe('FileViewerDialog', () => {
-  it('titles the dialog with the file and describes its kind and size', () => {
-    renderViewer({ status: 'loading', resource: PDF })
+describe('FileViewer page', () => {
+  it('is a page, not a pop-up: there is no dialog', () => {
+    renderViewer({ status: 'loading' })
 
-    expect(screen.getByRole('dialog', { name: 'Handbook' })).not.toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('main')).not.toBeNull()
+  })
+
+  it('titles the page with the file and describes its kind and size', () => {
+    renderViewer({ status: 'loading' })
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Handbook' })).not.toBeNull()
     expect(screen.getByText('PDF document · 2 KB')).not.toBeNull()
   })
 
   it('says the file is being opened while it loads', () => {
-    renderViewer({ status: 'loading', resource: PDF })
+    renderViewer({ status: 'loading' })
 
     expect(screen.getByRole('status').textContent).toBe('Opening file…')
   })
 
-  it('closes from its Close button', async () => {
-    const user = userEvent.setup()
-    const onClose = vi.fn()
-    renderViewer({ status: 'loading', resource: PDF }, { onClose })
+  describe('Save a copy', () => {
+    it('is always there, and asks for a copy when pressed', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      renderViewer({ status: 'loading' }, { onSave })
 
-    await user.click(screen.getByRole('button', { name: 'Close' }))
+      await user.click(screen.getByRole('button', { name: 'Save a copy' }))
 
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
+      expect(onSave).toHaveBeenCalledTimes(1)
+    })
 
-  it('closes on the native cancel event (Escape)', () => {
-    const onClose = vi.fn()
-    renderViewer({ status: 'loading', resource: PDF }, { onClose })
+    it('shows why a copy could not be saved, under the header', () => {
+      renderViewer(
+        { status: 'loading' },
+        { saveError: '"Handbook" could not be saved. Try again.' },
+      )
 
-    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
+      expect(screen.getByRole('alert').textContent).toBe(
+        '"Handbook" could not be saved. Try again.',
+      )
+    })
 
-    expect(onClose).toHaveBeenCalledTimes(1)
+    it('shows no alert when there is nothing to report', () => {
+      renderViewer({ status: 'loading' })
+
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
   })
 
   describe('a PDF', () => {
@@ -82,7 +115,7 @@ describe('FileViewerDialog', () => {
       // The file claims to be something else; the frame must still get a PDF.
       const blob = new Blob(['%PDF-1.7'], { type: 'text/html' })
 
-      renderViewer({ status: 'pdf', resource: PDF, blob })
+      renderViewer({ status: 'pdf', blob })
 
       const frame = screen.getByTitle('Handbook') as HTMLIFrameElement
       expect(frame.tagName).toBe('IFRAME')
@@ -94,10 +127,9 @@ describe('FileViewerDialog', () => {
       expect(urlBlob.size).toBe(blob.size)
     })
 
-    it('releases the object URL when the viewer closes', () => {
+    it('releases the object URL when the page goes away', () => {
       const { unmount } = renderViewer({
         status: 'pdf',
-        resource: PDF,
         blob: new Blob(['%PDF']),
       })
       expect(revokeObjectURL).not.toHaveBeenCalled()
@@ -109,18 +141,15 @@ describe('FileViewerDialog', () => {
     })
 
     it('does not make a second object URL for the same file when it re-renders', () => {
-      const state: OpenFileViewerState = {
-        status: 'pdf',
-        resource: PDF,
-        blob: new Blob(['%PDF']),
-      }
+      const state: FileViewerState = { status: 'pdf', blob: new Blob(['%PDF']) }
       const { rerender } = renderViewer(state)
 
       rerender(
-        <FileViewerDialog
+        <FileViewer
+          resource={PDF}
           state={state}
           onRetry={() => undefined}
-          onClose={() => undefined}
+          onSave={() => undefined}
         />,
       )
 
@@ -136,18 +165,14 @@ describe('FileViewerDialog', () => {
     })
 
     // The renderer is loaded on demand, so its content appears a moment after
-    // the dialog does. The first import has to transform the whole Markdown
-    // toolchain, which can take longer than a `findBy`'s default second when
-    // the machine is busy running every test file at once — so wait longer.
+    // the page does (the module itself is already warm, see `beforeAll`).
     const RENDERER_LOAD_TIMEOUT = { timeout: 10_000 }
 
     it('renders the document as content', async () => {
-      renderViewer({
-        status: 'markdown',
-        resource: notes,
-        text: '# Release plan\n\n- ship it',
-        isTruncated: false,
-      })
+      renderViewer(
+        { status: 'markdown', text: '# Release plan\n\n- ship it', isTruncated: false },
+        { resource: notes },
+      )
 
       expect(
         await screen.findByRole(
@@ -161,12 +186,10 @@ describe('FileViewerDialog', () => {
     })
 
     it('says so when only the start of a large document is shown', async () => {
-      renderViewer({
-        status: 'markdown',
-        resource: notes,
-        text: '# Big',
-        isTruncated: true,
-      })
+      renderViewer(
+        { status: 'markdown', text: '# Big', isTruncated: true },
+        { resource: notes },
+      )
 
       expect(screen.getByText(/only the first 200 KB is shown/)).not.toBeNull()
       expect(
@@ -175,20 +198,19 @@ describe('FileViewerDialog', () => {
     })
   })
 
-  describe('a file the dashboard cannot show', () => {
-    const contract = createTestFileResource({
-      name: 'Contract',
-      mimeType: 'application/msword',
-    })
+  describe('a file that opens in its own application', () => {
+    it('says so, and points back to the collections, without offering anything else', () => {
+      const contract = createTestFileResource({
+        name: 'Contract',
+        mimeType: 'application/msword',
+      })
 
-    it('explains why, without offering to download or copy it', () => {
-      renderViewer({ status: 'unsupported', resource: contract })
+      renderViewer({ status: 'unsupported' }, { resource: contract })
 
-      expect(screen.getByRole('status').textContent).toContain(
-        "Word documents can't be previewed in the dashboard yet",
+      expect(screen.getByRole('status').textContent).toBe(
+        '"Contract" opens in its own app. Open it from your collections.',
       )
-      expect(screen.getByRole('status').textContent).toContain('second copy')
-      expect(screen.queryByRole('button', { name: /download|save|try again/i })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
       expect(createObjectURL).not.toHaveBeenCalled()
     })
   })
@@ -200,7 +222,6 @@ describe('FileViewerDialog', () => {
       renderViewer(
         {
           status: 'error',
-          resource: PDF,
           code: 'PERMISSION_DENIED',
           message: 'Access to "Handbook" was not granted.',
         },
@@ -219,7 +240,6 @@ describe('FileViewerDialog', () => {
     it('offers no retry when the file is gone, since trying again cannot help', () => {
       renderViewer({
         status: 'error',
-        resource: PDF,
         code: 'NOT_FOUND',
         message: '"Handbook" could not be found.',
       })
@@ -233,7 +253,6 @@ describe('FileViewerDialog', () => {
     it('offers a retry when the file was unavailable', () => {
       renderViewer({
         status: 'error',
-        resource: PDF,
         code: 'UNAVAILABLE',
         message: '"Handbook" could not be opened. Try again.',
       })

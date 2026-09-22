@@ -165,6 +165,27 @@ export function getViewerStrategy(mimeType: string): ViewerStrategy {
 }
 
 /**
+ * The extension (with its dot) a file of this MIME type is given when it is
+ * saved or handed to an application: the first one the registry lists for that
+ * format. A resource stores only a name, never the original file name, so this
+ * is where the extension an operating system needs to pick the right
+ * application comes from. Returns `''` for a type the registry doesn't list.
+ */
+export function getFileExtension(mimeType: string): string {
+  const normalizedMimeType = normalizeMimeType(mimeType)
+
+  for (const kind of RESOURCE_KINDS) {
+    for (const format of kind.formats) {
+      if (format.mimeType === normalizedMimeType) {
+        return format.extensions[0] ?? ''
+      }
+    }
+  }
+
+  return ''
+}
+
+/**
  * Works out the MIME type to store for a picked file.
  *
  * A registered extension wins: browsers report `''` (or something generic like

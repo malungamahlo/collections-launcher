@@ -31,11 +31,18 @@ This extension isn't published to the Chrome Web Store yet, so it's loaded unpac
 
 ### Permissions
 
-The extension requests only three permissions:
+The extension requests only three permissions when you install it:
 
 - `storage` — to save your collections locally.
 - `activeTab` — to read the page you're on only when you invoke the popup.
 - `bookmarks` — to read your bookmark folders, but only when you choose **Import bookmarks**, so you can pick which bookmarks to turn into a collection. It is read-only: the extension never changes, adds, or deletes any of your bookmarks, and nothing is sent anywhere.
+
+It also declares three **optional** permissions. They are never requested at install time: Chrome asks for them only the first time you open a Word, Excel, or PowerPoint file from a collection, and describes them as "Manage your downloads".
+
+- `downloads` and `downloads.open` — to open that file in the application installed on your computer. An extension can't open a file where it already lives, so it writes a temporary copy into a folder of its own inside your Downloads folder, opens it, and deletes it again a couple of minutes later (or the next time the dashboard opens, if the application still had it open). Nothing is sent anywhere.
+- `downloads.ui` — to keep Chrome's download bubble from appearing for that temporary copy. Chrome's only switch for this hides the download interface for the whole browser, so the extension turns it off only while the copy is being written and back on straight after.
+
+PDF and Markdown files are shown inside the extension and need none of these, and the **Save a copy** button is an ordinary browser download that needs no permission.
 
 It does not request access to your browsing history or any specific website.
 
@@ -54,6 +61,7 @@ Other useful scripts:
 | --- | --- |
 | `npm run dev:samples` | Runs the dashboard against deterministic sample data instead of your real stored collections. |
 | `npm run build` | Produces the production build in `.output/chrome-mv3`. |
+| `npm run build:e2e` | The same build with the optional downloads permissions granted up front, in `.output/chrome-mv3-e2e`, for end-to-end tests (a test can't answer Chrome's permission prompt). Don't ship it. |
 | `npm run zip` | Packages the production build into a distributable `.zip`. |
 
 ## Testing
@@ -73,6 +81,7 @@ Automated tests cover domain logic, storage, and component behavior, but they ca
 - Exporting a real collection and inspecting the downloaded `.collectionLauncher` file, then re-importing it (into the same or a different profile) and confirming a faithful new collection with a preview step beforehand.
 - Hand-editing an exported file to be malformed (broken JSON, wrong `format`, a future `schemaVersion`) or hostile (a `javascript:` URL, a duplicate entry) and confirming it's rejected or safely skipped, with no change to stored state.
 - Importing bookmarks: on the folder step, pick a real bookmark folder; on the bookmarks step, confirm an internal page (like `chrome://extensions`) is listed but can't be ticked, that Clear disables "Next", and that ticking a subset previews only those. Then import into both a new collection and an existing one that already contains some of the same sites, confirming the duplicates are skipped and counted, no duplicate resource or collection appears, "Back" keeps your earlier choices, and cancelling changes nothing. Afterwards check that your browser's own bookmarks are untouched.
+- Opening files: add a real PDF, Markdown file, and Word document. The PDF and the Markdown file should open on a page of their own in the same tab, and the browser's Back button should return to the dashboard. The Word document should open in Word after Chrome asks, once, for its optional permission; check that no download bubble or shelf appears, that only a short notice says it is a temporary copy (Word may also show its own "Protected View" banner, because the file passed through Chrome), and that the copy is gone from the folder inside your Downloads folder a couple of minutes after you close Word. **Save a copy** should produce an ordinary download of the original file.
 - That your data is still there after fully restarting the browser.
 - Every primary workflow using only the keyboard.
 

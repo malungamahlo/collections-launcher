@@ -47,6 +47,29 @@ describe('BrowserFileDownloadAdapter', () => {
     expect(capturedAnchor?.click).toHaveBeenCalledOnce()
   })
 
+  it('saves a Blob as it is, keeping its own type', () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:mock-url')
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL: vi.fn(),
+    })
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+    const original = new Blob(['%PDF-1.7'], { type: 'application/pdf' })
+
+    // A type passed alongside a Blob does not re-type it.
+    new BrowserFileDownloadAdapter().download(
+      'Handbook.pdf',
+      original,
+      'text/plain',
+    )
+
+    expect(createObjectURL).toHaveBeenCalledWith(original)
+    expect(anchorClick).toHaveBeenCalledOnce()
+  })
+
   it('revokes the object URL after the click has been processed', () => {
     vi.useFakeTimers()
     const objectUrl = 'blob:mock-url'

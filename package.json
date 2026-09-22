@@ -11,6 +11,7 @@
     "predev:samples": "node scripts/ensure-chromium-profile.mjs",
     "dev:samples": "wxt --mode samples",
     "build": "tsc --noEmit && wxt build",
+    "build:e2e": "tsc --noEmit && wxt build --mode e2e",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

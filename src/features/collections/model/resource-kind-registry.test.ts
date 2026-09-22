@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_RESOURCE_KIND,
+  getFileExtension,
   getFilePickerTypes,
   getResourceKind,
   getViewerStrategy,
@@ -217,5 +218,43 @@ describe('getFilePickerTypes', () => {
     }
 
     expect(getFilePickerTypes()[0]?.accept['application/pdf']).toEqual(['.pdf'])
+  })
+})
+
+describe('getFileExtension', () => {
+  it.each([
+    ['application/pdf', '.pdf'],
+    ['text/markdown', '.md'],
+    [DOCX, '.docx'],
+    ['application/msword', '.doc'],
+    [XLSX, '.xlsx'],
+    ['application/vnd.ms-excel', '.xls'],
+    [PPTX, '.pptx'],
+    ['application/vnd.ms-powerpoint', '.ppt'],
+  ])('gives %s the extension %s', (mimeType, extension) => {
+    expect(getFileExtension(mimeType)).toBe(extension)
+  })
+
+  it('normalizes the MIME type first', () => {
+    expect(getFileExtension('Text/Markdown; charset=utf-8')).toBe('.md')
+  })
+
+  it('uses the first extension the registry lists for a format', () => {
+    // `.markdown` is also accepted by the picker; `.md` is what a copy is named.
+    expect(getFileExtension('text/markdown')).toBe('.md')
+  })
+
+  it('gives a type the registry does not list no extension', () => {
+    expect(getFileExtension('application/x-something-new')).toBe('')
+    expect(getFileExtension(UNKNOWN_MIME_TYPE)).toBe('')
+    expect(getFileExtension('')).toBe('')
+  })
+
+  it('has an extension for every registered format', () => {
+    for (const kind of RESOURCE_KINDS) {
+      for (const format of kind.formats) {
+        expect(getFileExtension(format.mimeType)).toBe(format.extensions[0])
+      }
+    }
   })
 })

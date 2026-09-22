@@ -36,22 +36,32 @@ confused with each other.
   (the `ResourceId` type). File-resource bytes are stored through
   `file-content.adapter.ts` in IndexedDB, separate from `chrome.storage.local`;
   `file-picker.adapter.ts` wraps the File System Access picker.
-- **Opening a file resource** (`hooks/use-open-file-resource.ts`,
-  `components/file-viewer-dialog.tsx`, `components/markdown-view.tsx`): a file row opens
-  a viewer dialog, chosen by the registry's viewer strategy — a PDF in the browser's own
-  viewer (an object URL in a frame, revoked when it closes), Markdown through
-  `react-markdown`. The Markdown document is untrusted: raw HTML is dropped, only
-  http/https/mailto links survive, and images are never loaded. The renderer is
-  `React.lazy`-loaded so it stays out of the new-tab entry chunk — keep it that way.
-- **Never make an extra copy of a user's file.** A locally added file is stored as a
-  reference (a `FileSystemFileHandle`), and opening one only reads it — nothing is written
-  to disk. Do not add download-to-open (handing a file to the OS through
-  `FileDownloadAdapter`, or a `downloads` permission): sync is planned and duplicates are
-  unwanted. An extension cannot open a file in another app without a copy, so Word, Excel,
-  and PowerPoint files are *held but not openable* — the viewer explains this. The only
-  no-copy route is a companion program over `nativeMessaging`, which the user has not
-  chosen; raise that trade-off rather than quietly downloading. (See
-  `documentation/Logic Doc/v3/10-phase-h-opening-a-file-resource.md`.)
+- **Opening a file resource** (`hooks/use-file-resource-actions.ts` on the dashboard,
+  `entrypoints/viewer` + `hooks/use-file-viewer.ts` + `components/file-viewer.tsx` for the
+  page): the registry's viewer strategy decides. A PDF or Markdown file opens **on a page
+  of its own in the current tab** — `viewer.html?resource=<id>`, reached the way a website
+  is (`window.location.assign`), so Back returns to the dashboard — **never in a pop-up
+  dialog** (a user rule). The PDF is an object URL in a frame, revoked when the page
+  goes; Markdown goes through `react-markdown`, which is untrusted input: raw HTML is
+  dropped, only http/https/mailto links survive, images are never loaded, only the first
+  200 KB is rendered. The renderer is `React.lazy`-loaded so it stays out of the entry
+  chunk — keep it that way. Anything else (Word, Excel, PowerPoint) opens in the OS's
+  own application (below). Every file row also has **Save a copy**.
+- **Copies of a user's files.** A locally added file is stored as a reference (a
+  `FileSystemFileHandle`), never a stored duplicate; sync is planned and piled-up copies
+  are unwanted. The one sanctioned copy is the **temporary one made to open an Office
+  file in its own application** (`platform/browser/external-open.adapter.ts`): an
+  extension cannot open a file in place, so it is written through `chrome.downloads` into
+  a folder of its own inside Downloads, opened with `downloads.open`, and deleted by
+  `cleanUp` once the app has let go of it. The user asked that this be **invisible** —
+  Chrome's download bubble is hidden while it is written (`downloads.ui`), nothing says
+  "download", and the one sentence shown says it is a temporary copy so nobody edits it
+  believing it is the original. A copy that lasts exists only when the user presses
+  **Save a copy** (an ordinary visible download through `FileDownloadAdapter`). Never make
+  the hidden copy visible, and never keep one. Three optional permissions (`downloads`,
+  `downloads.open`, `downloads.ui`) are asked for the first time an Office file is opened,
+  from the click itself; `downloads.open` also needs a click within ~5 seconds, hence the
+  "ready — Open" fallback. (See `documentation/Logic Doc/v3/11-…`.)
 - `src/shared/` — generic UI primitives (`components/ui`), hooks, `lib`, styles.
   Imports nothing from `features/`, `engine/`, or `platform/`.
 - `entrypoints/newtab`, `entrypoints/popup` — composition roots only.
@@ -65,17 +75,22 @@ no jest-dom matchers — use plain assertions; browser APIs come from
 ## Commands
 
 `npm test` (vitest), `npm run lint`, `npm run build` (`tsc --noEmit` then
-`wxt build`), `npm run start` (managed Chromium with live reload). On Windows use
-`npm.cmd` if the `npm.ps1` shim is blocked.
+`wxt build`), `npm run build:e2e` (the same build with the downloads permissions granted
+up front, for the Playwright tests), `npm run start` (managed Chromium with live reload).
+On Windows use `npm.cmd` if the `npm.ps1` shim is blocked.
 
 ## End-to-end tests (Playwright)
 
 Live **outside this repo**, in a sibling project:
 `C:\Users\Malunga Mahlo\Documents\Malunga\Projects\playwright-tests` (Playwright +
 TypeScript, its own `package.json`, not a git repo). They load the **built**
-extension (`.output/chrome-mv3`) into a fresh throwaway Chromium profile per test —
-never the user's real profile — so run `npm run build` here first, then run the tests
-from that folder.
+extension into a fresh throwaway Chromium profile per test — never the user's real
+profile — so run `npm run build:e2e` here first (it writes `.output/chrome-mv3-e2e`,
+identical to the shipped build except that the optional downloads permissions are
+granted, because a test cannot click Chrome's permission prompt), then run the tests
+from that folder. Tests that touch Office files use `helpers/downloads-api.ts`, which
+records what the extension asks `chrome.downloads` to do and never lets `open` launch a
+real application.
 
 - **Test documents** come from
   `C:\Users\Malunga Mahlo\Documents\Malunga\Projects\Collection Notes\Tests` (today: a

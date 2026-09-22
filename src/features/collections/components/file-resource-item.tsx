@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Eye, GripVertical, Trash2 } from 'lucide-react'
+import { Download, GripVertical, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { usePrefersReducedMotion } from '@app/shared/hooks/use-prefers-reduced-motion'
@@ -12,8 +12,10 @@ import { RESOURCE_ICONS } from './resource-icons'
 
 interface FileResourceItemProps {
   readonly resource: FileResource
-  /** When given, the row can be opened in the viewer; without it the row is display-only. */
+  /** When given, the row can be opened; without it the row is display-only. */
   readonly onOpen?: (resource: FileResource) => void
+  /** When given, the row offers to save a copy of the file. */
+  readonly onSave?: (resource: FileResource) => void
   readonly onDelete?: (resource: FileResource) => void
   readonly isReorderable?: boolean
   readonly isHighlighted?: boolean
@@ -28,6 +30,7 @@ interface FileResourceItemProps {
 export function FileResourceItem({
   resource,
   onOpen,
+  onSave,
   onDelete,
   isReorderable = false,
   isHighlighted = false,
@@ -52,17 +55,14 @@ export function FileResourceItem({
           {resource.name}
         </span>
 
-        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-          {kind.label} · {formatFileSize(resource.sizeBytes)}
+        {/* Wraps rather than truncates: the row also carries a save and a delete
+            button, and the kind and size are worth more than a tidy single line.
+            Non-breaking spaces keep "8.4 KB" (and the dot before it) in one piece
+            when it does wrap. */}
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          {`${kind.label}\u00A0· ${formatFileSize(resource.sizeBytes).replace(' ', '\u00A0')}`}
         </span>
       </span>
-
-      {onOpen && (
-        <Eye
-          className="size-4 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-      )}
     </>
   )
 
@@ -110,6 +110,18 @@ export function FileResourceItem({
         <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl bg-muted/70 px-2.5 py-2.5 sm:gap-3 sm:px-3">
           {content}
         </div>
+      )}
+
+      {onSave && (
+        <Button
+          variant="secondary"
+          className="size-9 shrink-0 px-0 hover:bg-slate-300"
+          aria-label={`Save a copy of ${resource.name}`}
+          title={`Save a copy of ${resource.name}`}
+          onClick={() => onSave(resource)}
+        >
+          <Download className="size-4" aria-hidden="true" />
+        </Button>
       )}
 
       {onDelete && (

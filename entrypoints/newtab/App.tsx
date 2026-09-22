@@ -11,7 +11,7 @@ import { DeleteWebsiteResourceDialog } from '@app/features/collections/component
 import { NoSearchResultsEmptyState } from '@app/features/collections/components/no-search-results-empty-state'
 import { AddResourceDialog } from '@app/features/collections/components/add-resource-dialog'
 import { FileResourceForm } from '@app/features/collections/components/file-resource-form'
-import { FileViewerDialog } from '@app/features/collections/components/file-viewer-dialog'
+import { FileActionToast } from '@app/features/collections/components/file-action-toast'
 import { WebsiteResourceForm } from '@app/features/collections/components/website-resource-form'
 import { WebsiteResourceFormDialog } from '@app/features/collections/components/website-resource-form-dialog'
 import { DEVELOPMENT_SAMPLE_STATE } from '@app/features/collections/development/sample-collections'
@@ -21,7 +21,7 @@ import { useCollectionSearch } from '@app/features/collections/hooks/use-collect
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
 import { useAddResource } from '@app/features/collections/hooks/use-add-resource'
 import { useFileResourceManagement } from '@app/features/collections/hooks/use-file-resource-management'
-import { useOpenFileResource } from '@app/features/collections/hooks/use-open-file-resource'
+import { useFileResourceActions } from '@app/features/collections/hooks/use-file-resource-actions'
 import { useResourceMove } from '@app/features/collections/hooks/use-resource-move'
 import { useResourceReorder } from '@app/features/collections/hooks/use-resource-reorder'
 import { useWebsiteResourceManagement } from '@app/features/collections/hooks/use-website-resource-management'
@@ -38,6 +38,7 @@ import { useExportCollection } from '@app/engine/portability/hooks/use-export-co
 import { useImportCollection } from '@app/engine/portability/hooks/use-import-collection'
 import { BUNDLE_FILE_EXTENSION } from '@app/engine/portability/model/bundle.types'
 import { BrowserBookmarksAdapter } from '@app/platform/browser/bookmarks.adapter'
+import { BrowserExternalOpenAdapter } from '@app/platform/browser/external-open.adapter'
 import { BrowserFileContentAdapter } from '@app/platform/browser/file-content.adapter'
 import { BrowserFileDownloadAdapter } from '@app/platform/browser/file-download.adapter'
 import { BrowserFilePickerAdapter } from '@app/platform/browser/file-picker.adapter'
@@ -49,6 +50,9 @@ const tabsAdapter = new BrowserTabsAdapter()
 const fileDownloadAdapter = new BrowserFileDownloadAdapter()
 const bookmarksAdapter = new BrowserBookmarksAdapter()
 const filePickerAdapter = new BrowserFilePickerAdapter()
+// Hands a file to the operating system's own application (Word, …) through a
+// temporary copy the user is never shown.
+const externalOpenAdapter = new BrowserExternalOpenAdapter()
 // File bytes (or references to them) live in IndexedDB, not in the collections
 // state in `chrome.storage.local`.
 const fileContentAdapter = new BrowserFileContentAdapter(
@@ -82,8 +86,14 @@ function App() {
     files: fileResourceManagement,
     collections: storedCollections.state.collections,
   })
-  // Opening a file resource shows it in a viewer; websites still open as tabs.
-  const openFile = useOpenFileResource({ fileContent: fileContentAdapter })
+  // Opening a file resource: a PDF or Markdown file on its own page in this
+  // tab, anything else in its own application. Websites don't come through here.
+  const fileActions = useFileResourceActions({
+    fileContent: fileContentAdapter,
+    tabs: tabsAdapter,
+    externalOpen: externalOpenAdapter,
+    fileDownload: fileDownloadAdapter,
+  })
   const resourceReorder = useResourceReorder({
     state: storedCollections.state,
     save: storedCollections.save,
@@ -283,7 +293,12 @@ function App() {
               onOpenFile={
                 isDevelopmentPreview
                   ? undefined
-                  : resource => void openFile.open(resource)
+                  : resource => void fileActions.open(resource)
+              }
+              onSaveFile={
+                isDevelopmentPreview
+                  ? undefined
+                  : resource => void fileActions.save(resource)
               }
               onOpenAll={handleOpenAll}
               onEditCollection={
@@ -420,12 +435,11 @@ function App() {
         />
       )}
 
-      {openFile.state.status !== 'closed' && (
-        <FileViewerDialog
-          state={openFile.state}
-          fallbackFocusRef={dashboardFallbackFocusRef}
-          onRetry={openFile.retry}
-          onClose={openFile.close}
+      {fileActions.notice && (
+        <FileActionToast
+          notice={fileActions.notice}
+          onAction={fileActions.runNoticeAction}
+          onDismiss={fileActions.dismissNotice}
         />
       )}
 

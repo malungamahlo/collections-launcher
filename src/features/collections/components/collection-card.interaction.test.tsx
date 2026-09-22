@@ -50,6 +50,43 @@ describe('CollectionCard opening resources', () => {
     expect(onOpenFile).toHaveBeenCalledTimes(1)
   })
 
+  it('saves a copy of a file through its own handler, never a website', async () => {
+    const user = userEvent.setup()
+    const onSaveFile = vi.fn()
+    render(
+      <CollectionCard
+        collection={collection}
+        onOpenResource={() => undefined}
+        onSaveFile={onSaveFile}
+        onOpenAll={() => undefined}
+      />,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Save a copy of Handbook' }),
+    )
+
+    expect(onSaveFile).toHaveBeenCalledExactlyOnceWith(file)
+    // A website has nothing to save a copy of.
+    expect(
+      screen.queryByRole('button', { name: 'Save a copy of GitHub' }),
+    ).toBeNull()
+  })
+
+  it('offers no save control when it is given no save handler', () => {
+    render(
+      <CollectionCard
+        collection={collection}
+        onOpenResource={() => undefined}
+        onOpenAll={() => undefined}
+      />,
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'Save a copy of Handbook' }),
+    ).toBeNull()
+  })
+
   it('leaves file rows display-only when it is given no file handler', () => {
     render(
       <CollectionCard
@@ -80,5 +117,24 @@ describe('CollectionGrid opening files', () => {
     await user.click(screen.getByRole('button', { name: 'Open Handbook' }))
 
     expect(onOpenFile).toHaveBeenCalledExactlyOnceWith(file)
+  })
+
+  it('passes the save handler down to each card', async () => {
+    const user = userEvent.setup()
+    const onSaveFile = vi.fn()
+    render(
+      <CollectionGrid
+        collections={[collection]}
+        onOpenResource={() => undefined}
+        onSaveFile={onSaveFile}
+        onOpenAll={() => undefined}
+      />,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Save a copy of Handbook' }),
+    )
+
+    expect(onSaveFile).toHaveBeenCalledExactlyOnceWith(file)
   })
 })

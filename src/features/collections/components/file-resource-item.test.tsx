@@ -119,6 +119,37 @@ describe('FileResourceItem', () => {
     expect(onDelete).toHaveBeenCalledWith(resource)
   })
 
+  it('offers no save control unless it is given a save handler', () => {
+    render(
+      <ul>
+        <FileResourceItem resource={createTestFileResource({ name: 'Handbook' })} />
+      </ul>,
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'Save a copy of Handbook' }),
+    ).toBeNull()
+  })
+
+  it('reports the file to save, without also opening it', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    const onOpen = vi.fn()
+    const resource = createTestFileResource({ name: 'Handbook' })
+    render(
+      <ul>
+        <FileResourceItem resource={resource} onOpen={onOpen} onSave={onSave} />
+      </ul>,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Save a copy of Handbook' }),
+    )
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith(resource)
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
   it('shows a reorder handle only when reordering is enabled', () => {
     const resource = createTestFileResource({ name: 'Handbook' })
     const { rerender } = render(
