@@ -87,10 +87,19 @@ function Notice({
 }
 
 /**
- * The page a file resource is viewed on: a header with its name, kind and size
- * and a **Save a copy** button, above whatever its state calls for — a PDF, a
- * rendered Markdown document, or a message. It renders the state the viewer
- * hook is in and owns no logic of its own.
+ * The page a file resource is viewed on: a header with its name, kind and
+ * size, above whatever its state calls for — a PDF, a rendered Markdown
+ * document, or a message. It renders the state the viewer hook is in and owns
+ * no logic of its own.
+ *
+ * The header's **Save a copy** button is left out entirely for a PDF: once
+ * shown, a PDF is rendered by the browser's own built-in viewer, which
+ * already has its own download control in its toolbar — a second one next to
+ * it would just be the same action twice. It stays for every other kind
+ * (Markdown's renderer is this app's own and has no native save affordance of
+ * its own), and it is decided by the resource's *kind*, not by which state the
+ * page happens to be in, so it does not appear and disappear as the page goes
+ * from loading to showing content.
  */
 export function FileViewer({
   resource,
@@ -101,6 +110,7 @@ export function FileViewer({
 }: FileViewerProps) {
   const kind = getResourceKind(resource.mimeType)
   const KindIcon = RESOURCE_ICONS[kind.iconKey]
+  const offersSaveCopy = kind.viewer !== 'native-pdf'
 
   let body: ReactNode
 
@@ -177,19 +187,21 @@ export function FileViewer({
           </p>
         </div>
 
-        <Button
-          variant="secondary"
-          className="shrink-0 gap-2"
-          aria-label="Save a copy"
-          title="Save a copy"
-          onClick={onSave}
-        >
-          <Download className="size-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Save a copy</span>
-        </Button>
+        {offersSaveCopy && (
+          <Button
+            variant="secondary"
+            className="shrink-0 gap-2"
+            aria-label="Save a copy"
+            title="Save a copy"
+            onClick={onSave}
+          >
+            <Download className="size-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Save a copy</span>
+          </Button>
+        )}
       </header>
 
-      {saveError && (
+      {offersSaveCopy && saveError && (
         <p
           role="alert"
           className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800 sm:px-6"

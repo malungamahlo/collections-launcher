@@ -154,27 +154,38 @@ describe('viewer page', () => {
     expect(adapters.loadSpy).toHaveBeenCalledTimes(2)
   })
 
+  // Save a copy is left out for a PDF (the browser's own viewer already has a
+  // download control) — see file-viewer.test.tsx — so this exercises a
+  // Markdown resource, which still offers it.
   it('saves a copy from its header, named after the file with its extension', async () => {
     const user = userEvent.setup()
-    const content = new Blob(['%PDF-1.7'], { type: 'application/pdf' })
+    const content = new Blob(['# Notes'], { type: 'text/markdown' })
     const adapters = createAdapters(() => Promise.resolve(content))
-    renderViewer({ search: searchFor('pdf-1'), adapters })
+    renderViewer({ search: searchFor('md-1'), adapters })
 
     await user.click(await screen.findByRole('button', { name: 'Save a copy' }))
 
     await waitFor(() =>
       expect(adapters.download).toHaveBeenCalledExactlyOnceWith(
-        'Handbook.pdf',
+        'Notes.md',
         content,
       ),
     )
   })
 
+  it('offers no Save a copy for a PDF, since the browser’s own viewer already has one', async () => {
+    renderViewer({ search: searchFor('pdf-1') })
+
+    await screen.findByRole('heading', { level: 1, name: 'Handbook' })
+
+    expect(screen.queryByRole('button', { name: 'Save a copy' })).toBeNull()
+  })
+
   it('says why a copy could not be saved', async () => {
     const user = userEvent.setup()
     const adapters = createAdapters()
-    renderViewer({ search: searchFor('pdf-1'), adapters })
-    await screen.findByRole('heading', { name: 'Handbook' })
+    renderViewer({ search: searchFor('md-1'), adapters })
+    await screen.findByRole('heading', { level: 1, name: 'Notes' })
     adapters.loadSpy.mockRejectedValueOnce(
       new FileContentError('NOT_FOUND', 'gone'),
     )

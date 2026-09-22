@@ -82,10 +82,15 @@ describe('FileViewer page', () => {
   })
 
   describe('Save a copy', () => {
-    it('is always there, and asks for a copy when pressed', async () => {
+    const markdownResource = createTestFileResource({
+      name: 'Notes',
+      mimeType: 'text/markdown',
+    })
+
+    it('is offered for a Markdown file, and asks for a copy when pressed', async () => {
       const user = userEvent.setup()
       const onSave = vi.fn()
-      renderViewer({ status: 'loading' }, { onSave })
+      renderViewer({ status: 'loading' }, { resource: markdownResource, onSave })
 
       await user.click(screen.getByRole('button', { name: 'Save a copy' }))
 
@@ -95,18 +100,47 @@ describe('FileViewer page', () => {
     it('shows why a copy could not be saved, under the header', () => {
       renderViewer(
         { status: 'loading' },
-        { saveError: '"Handbook" could not be saved. Try again.' },
+        {
+          resource: markdownResource,
+          saveError: '"Notes" could not be saved. Try again.',
+        },
       )
 
       expect(screen.getByRole('alert').textContent).toBe(
-        '"Handbook" could not be saved. Try again.',
+        '"Notes" could not be saved. Try again.',
       )
     })
 
     it('shows no alert when there is nothing to report', () => {
-      renderViewer({ status: 'loading' })
+      renderViewer({ status: 'loading' }, { resource: markdownResource })
 
       expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    // A PDF is shown by the browser's own built-in viewer, which already has
+    // its own download control in its toolbar — a second one in the header
+    // would just be the same action twice, so it is left out entirely for a
+    // PDF resource. That is decided by the resource's *kind*, not by which
+    // state the page happens to be in, so it stays out for as long as the
+    // page is about a PDF, not just once the PDF itself has rendered.
+    const pdfStates: ReadonlyArray<[string, FileViewerState]> = [
+      ['while loading', { status: 'loading' }],
+      ['once shown', { status: 'pdf', blob: new Blob(['%PDF']) }],
+      [
+        'on an error',
+        {
+          status: 'error',
+          code: 'UNAVAILABLE',
+          message: '"Handbook" could not be opened. Try again.',
+        },
+      ],
+    ]
+
+    it.each(pdfStates)('is left out for a PDF resource, %s', (_label, state) => {
+      renderViewer(state, { saveError: 'should never show' })
+
+      expect(screen.queryByRole('button', { name: 'Save a copy' })).toBeNull()
+      expect(screen.queryByText('should never show')).toBeNull()
     })
   })
 
@@ -212,6 +246,9 @@ describe('FileViewer page', () => {
       )
       expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
       expect(createObjectURL).not.toHaveBeenCalled()
+      // Leaving out Save a copy is specific to a PDF — this is Word, so it's
+      // still offered (reachable only by a hand-typed address, but still correct).
+      expect(screen.getByRole('button', { name: 'Save a copy' })).not.toBeNull()
     })
   })
 

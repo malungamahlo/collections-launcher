@@ -46,7 +46,12 @@ confused with each other.
   dropped, only http/https/mailto links survive, images are never loaded, only the first
   200 KB is rendered. The renderer is `React.lazy`-loaded so it stays out of the entry
   chunk — keep it that way. Anything else (Word, Excel, PowerPoint) opens in the OS's
-  own application (below). Every file row also has **Save a copy**.
+  own application (below). Every file row also has **Save a copy**, and so does a
+  file's own page — *except* a PDF's: Chromium's built-in PDF viewer already has a
+  download control in its toolbar, so `FileViewer` leaves its header's button out for
+  that one kind (decided from the resource's kind, not the page's loading/error
+  state, so it can't flicker in). Don't add an app-level save/download control next
+  to a native viewer that already has one.
 - **Copies of a user's files.** A locally added file is stored as a reference (a
   `FileSystemFileHandle`), never a stored duplicate; sync is planned and piled-up copies
   are unwanted. The one sanctioned copy is the **temporary one made to open an Office
