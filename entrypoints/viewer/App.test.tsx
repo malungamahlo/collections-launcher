@@ -105,20 +105,20 @@ function searchFor(resourceId: string): string {
 }
 
 describe('viewer page', () => {
-  it('shows a PDF resource on a page of its own, named after it', async () => {
+  it('shows a PDF resource on a page of its own, titling the tab after it', async () => {
     const adapters = renderViewer({ search: searchFor('pdf-1') })
 
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'Handbook' }),
-    ).not.toBeNull()
     await waitFor(() =>
       expect((screen.getByTitle('Handbook') as HTMLIFrameElement).getAttribute('src')).toBe(
         FRAME_URL,
       ),
     )
     expect(adapters.loadSpy).toHaveBeenCalledWith('pdf-1')
-    // The tab is titled with the file, and nothing is a pop-up.
+    // The tab is titled with the file, and there is no header repeating that
+    // (or anything else) above the browser's own PDF viewer — and nothing is a pop-up.
     expect(document.title).toBe('Handbook')
+    expect(screen.queryByRole('banner')).toBeNull()
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -173,11 +173,12 @@ describe('viewer page', () => {
     )
   })
 
-  it('offers no Save a copy for a PDF, since the browser’s own viewer already has one', async () => {
+  it('has no header, or Save a copy button, for a PDF — the browser’s own viewer already has both', async () => {
     renderViewer({ search: searchFor('pdf-1') })
 
-    await screen.findByRole('heading', { level: 1, name: 'Handbook' })
+    await screen.findByTitle('Handbook')
 
+    expect(screen.queryByRole('banner')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Save a copy' })).toBeNull()
   })
 
@@ -185,7 +186,9 @@ describe('viewer page', () => {
     const user = userEvent.setup()
     const adapters = createAdapters()
     renderViewer({ search: searchFor('md-1'), adapters })
-    await screen.findByRole('heading', { level: 1, name: 'Notes' })
+    // Lets the page's own first load claim its call before queuing the next
+    // one to fail — the save button's click triggers a second, separate load.
+    await waitFor(() => expect(adapters.loadSpy).toHaveBeenCalledTimes(1))
     adapters.loadSpy.mockRejectedValueOnce(
       new FileContentError('NOT_FOUND', 'gone'),
     )
@@ -238,7 +241,7 @@ describe('viewer page', () => {
       expect(adapters.loadSpy).not.toHaveBeenCalled()
 
       release(STATE)
-      expect(await screen.findByRole('heading', { name: 'Handbook' })).not.toBeNull()
+      expect(await screen.findByTitle('Handbook')).not.toBeNull()
     })
 
     it('reports collections that could not be loaded', async () => {

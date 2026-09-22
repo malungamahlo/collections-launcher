@@ -68,26 +68,31 @@ describe('FileViewer page', () => {
     expect(screen.getByRole('main')).not.toBeNull()
   })
 
-  it('titles the page with the file and describes its kind and size', () => {
-    renderViewer({ status: 'loading' })
-
-    expect(screen.getByRole('heading', { level: 1, name: 'Handbook' })).not.toBeNull()
-    expect(screen.getByText('PDF document · 2 KB')).not.toBeNull()
-  })
-
   it('says the file is being opened while it loads', () => {
     renderViewer({ status: 'loading' })
 
     expect(screen.getByRole('status').textContent).toBe('Opening file…')
   })
 
-  describe('Save a copy', () => {
+  describe('the header', () => {
     const markdownResource = createTestFileResource({
       name: 'Notes',
       mimeType: 'text/markdown',
+      sizeBytes: 2_048,
     })
 
-    it('is offered for a Markdown file, and asks for a copy when pressed', async () => {
+    it('describes the file’s kind and size, without repeating its name', () => {
+      // The browser's own tab title already carries the name (`useDocumentTitle`,
+      // set by the caller) — showing it again in the header would be the same
+      // information twice.
+      renderViewer({ status: 'loading' }, { resource: markdownResource })
+
+      expect(screen.getByText('Markdown document · 2 KB')).not.toBeNull()
+      expect(screen.queryByText('Notes')).toBeNull()
+      expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    })
+
+    it('offers Save a copy, and asks for a copy when pressed', async () => {
       const user = userEvent.setup()
       const onSave = vi.fn()
       renderViewer({ status: 'loading' }, { resource: markdownResource, onSave })
@@ -117,12 +122,13 @@ describe('FileViewer page', () => {
       expect(screen.queryByRole('alert')).toBeNull()
     })
 
-    // A PDF is shown by the browser's own built-in viewer, which already has
-    // its own download control in its toolbar — a second one in the header
-    // would just be the same action twice, so it is left out entirely for a
-    // PDF resource. That is decided by the resource's *kind*, not by which
-    // state the page happens to be in, so it stays out for as long as the
-    // page is about a PDF, not just once the PDF itself has rendered.
+    // For a PDF there is no header at all, in any state: once shown, a PDF is
+    // rendered by the browser's own built-in viewer, which brings its own
+    // toolbar — kind, size, a download control, all of it — so a header above
+    // that would just be a second, mostly-empty one. This is decided by the
+    // resource's *kind*, not by which state the page happens to be in, so
+    // nothing appears and then disappears as the page goes from loading to
+    // showing content.
     const pdfStates: ReadonlyArray<[string, FileViewerState]> = [
       ['while loading', { status: 'loading' }],
       ['once shown', { status: 'pdf', blob: new Blob(['%PDF']) }],
@@ -136,9 +142,12 @@ describe('FileViewer page', () => {
       ],
     ]
 
-    it.each(pdfStates)('is left out for a PDF resource, %s', (_label, state) => {
+    it.each(pdfStates)('does not exist at all for a PDF resource, %s', (_label, state) => {
       renderViewer(state, { saveError: 'should never show' })
 
+      // <header> carries the implicit "banner" landmark role.
+      expect(screen.queryByRole('banner')).toBeNull()
+      expect(screen.queryByText(/PDF document/)).toBeNull()
       expect(screen.queryByRole('button', { name: 'Save a copy' })).toBeNull()
       expect(screen.queryByText('should never show')).toBeNull()
     })

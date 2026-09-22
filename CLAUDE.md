@@ -47,11 +47,14 @@ confused with each other.
   200 KB is rendered. The renderer is `React.lazy`-loaded so it stays out of the entry
   chunk — keep it that way. Anything else (Word, Excel, PowerPoint) opens in the OS's
   own application (below). Every file row also has **Save a copy**, and so does a
-  file's own page — *except* a PDF's: Chromium's built-in PDF viewer already has a
-  download control in its toolbar, so `FileViewer` leaves its header's button out for
-  that one kind (decided from the resource's kind, not the page's loading/error
-  state, so it can't flicker in). Don't add an app-level save/download control next
-  to a native viewer that already has one.
+  file's own page — *except* a PDF's, which has **no header at all**: the tab title
+  already names it, and Chromium's built-in PDF viewer already brings its own toolbar
+  (kind, size, a download control), so a header above that would be a second,
+  mostly-empty one. `FileViewer` decides this — `showsHeader = kind.viewer !==
+  'native-pdf'` — from the resource's *kind*, never the page's loading/pdf/error
+  state, so nothing can flicker in and out. Don't add app-level chrome (a name, a
+  save/download control, anything) that only repeats what the tab or a native viewer
+  already shows.
 - **Copies of a user's files.** A locally added file is stored as a reference (a
   `FileSystemFileHandle`), never a stored duplicate; sync is planned and piled-up copies
   are unwanted. The one sanctioned copy is the **temporary one made to open an Office

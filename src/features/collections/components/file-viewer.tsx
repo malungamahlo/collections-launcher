@@ -87,19 +87,24 @@ function Notice({
 }
 
 /**
- * The page a file resource is viewed on: a header with its name, kind and
- * size, above whatever its state calls for — a PDF, a rendered Markdown
- * document, or a message. It renders the state the viewer hook is in and owns
- * no logic of its own.
+ * The page a file resource is viewed on: a header with its kind and size and
+ * a **Save a copy** button, above whatever its state calls for — a PDF, a
+ * rendered Markdown document, or a message. It renders the state the viewer
+ * hook is in and owns no logic of its own.
  *
- * The header's **Save a copy** button is left out entirely for a PDF: once
- * shown, a PDF is rendered by the browser's own built-in viewer, which
- * already has its own download control in its toolbar — a second one next to
- * it would just be the same action twice. It stays for every other kind
- * (Markdown's renderer is this app's own and has no native save affordance of
- * its own), and it is decided by the resource's *kind*, not by which state the
- * page happens to be in, so it does not appear and disappear as the page goes
- * from loading to showing content.
+ * The header never repeats the file's **name**: the browser's own tab title
+ * already shows it (`useDocumentTitle`, set by the caller), so showing it
+ * again here would just be the same information twice.
+ *
+ * **For a PDF, there is no header at all.** Once shown, a PDF is rendered by
+ * the browser's own built-in viewer, which brings its own toolbar — kind,
+ * size, a download control, all of it — so our header above that would be a
+ * second, mostly-empty one, showing information the native toolbar already
+ * conveys by being there. The PDF viewer fills the page from the very top
+ * instead. Every other kind keeps the header (Markdown's renderer is this
+ * app's own, with no toolbar of its own to defer to). This is decided by the
+ * resource's *kind*, not by which state the page happens to be in, so nothing
+ * appears and then disappears as the page goes from loading to showing content.
  */
 export function FileViewer({
   resource,
@@ -110,7 +115,7 @@ export function FileViewer({
 }: FileViewerProps) {
   const kind = getResourceKind(resource.mimeType)
   const KindIcon = RESOURCE_ICONS[kind.iconKey]
-  const offersSaveCopy = kind.viewer !== 'native-pdf'
+  const showsHeader = kind.viewer !== 'native-pdf'
 
   let body: ReactNode
 
@@ -170,24 +175,19 @@ export function FileViewer({
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-3 sm:px-6">
-        <span
-          className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground"
-          aria-hidden="true"
-        >
-          <KindIcon className="size-5" />
-        </span>
+      {showsHeader && (
+        <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-3 sm:px-6">
+          <span
+            className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground"
+            aria-hidden="true"
+          >
+            <KindIcon className="size-5" />
+          </span>
 
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-base font-semibold text-card-foreground sm:text-lg">
-            {resource.name}
-          </h1>
-          <p className="truncate text-xs text-muted-foreground sm:text-sm">
+          <p className="min-w-0 flex-1 truncate text-sm font-medium text-card-foreground sm:text-base">
             {kind.label} · {formatFileSize(resource.sizeBytes)}
           </p>
-        </div>
 
-        {offersSaveCopy && (
           <Button
             variant="secondary"
             className="shrink-0 gap-2"
@@ -198,10 +198,10 @@ export function FileViewer({
             <Download className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">Save a copy</span>
           </Button>
-        )}
-      </header>
+        </header>
+      )}
 
-      {offersSaveCopy && saveError && (
+      {showsHeader && saveError && (
         <p
           role="alert"
           className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800 sm:px-6"
