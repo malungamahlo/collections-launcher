@@ -47,6 +47,22 @@ Opening a file in the browser, whatever its kind, needs none of these, and the *
 
 It does not request access to your browsing history or any specific website.
 
+### Showing the Collections Launcher icon on exported files (Windows)
+
+An exported collection is a `.collectionLauncher` file. Windows shows a blank-page icon for it, because Windows chooses a file's icon from its type and a browser extension cannot register a file type. A one-time setup, run once on each computer, does it:
+
+1. Open the `tools/windows-file-icon` folder of this repository.
+2. Double-click `install.cmd` (or run `install.ps1` in PowerShell).
+
+Exported files then show the Collections Launcher icon in File Explorer, and their type reads "Collections Launcher collection". The setup:
+
+- applies to your Windows user only and needs no administrator rights;
+- copies the icon to `%LOCALAPPDATA%\CollectionsLauncher`, so it keeps working if you move or delete this repository;
+- does not change what happens when you double-click a file, and sends nothing anywhere;
+- is undone by `uninstall.cmd` in the same folder.
+
+Someone you send a file to sees the icon only after running the same setup on their own computer. The file itself is unchanged and imports the same way either way.
+
 ## Development
 
 ```

@@ -100,6 +100,15 @@ confused with each other.
   `downloads.open`, `downloads.ui`) are asked for the first time an Office file is opened in its app,
   from the click itself; `downloads.open` also needs a click within ~5 seconds, hence the
   "ready — Open" fallback. (See `documentation/Logic Doc/v3/11-…`.)
+- **The icon on an exported `.collectionLauncher` file** is a Windows matter, not the
+  extension's: Windows picks a file's icon from its registered type, which an extension
+  cannot set. `tools/windows-file-icon/install.ps1` (and `install.cmd`) registers it for
+  the current user under `HKCU\Software\Classes` (`.collectionLauncher` →
+  `CollectionsLauncher.Collection` → `DefaultIcon`), copies the `.ico` to
+  `%LOCALAPPDATA%\CollectionsLauncher`, and registers **no open command**;
+  `uninstall.ps1` undoes it. The `.ico` is built from `assets/collection-file.svg` by
+  `npm run build:file-icon` (`scripts/build-file-icon.mjs`, using `sharp`) and committed.
+  Never run the installer on the user's machine without asking.
 - `src/shared/` — generic UI primitives (`components/ui`), hooks, `lib`, styles.
   Imports nothing from `features/`, `engine/`, or `platform/`.
 - `entrypoints/newtab`, `entrypoints/popup`, `entrypoints/viewer`, `entrypoints/background`

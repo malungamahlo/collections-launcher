@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!--
+    The icon Windows shows on an exported .collectionLauncher file: a page with
+    a folded corner carrying the launcher's mark, so it reads as "a Collections
+    Launcher file" rather than as the app itself. Built into an .ico by
+    scripts/build-file-icon.mjs.
+  -->
+  <defs>
+    <linearGradient id="page" x1="22" y1="6" x2="106" y2="122" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#172554"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="cards" x1="38" y1="31" x2="91" y2="99" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </linearGradient>
+  </defs>
+  <path d="M28 6h50l30 30v76a10 10 0 0 1-10 10H28a10 10 0 0 1-10-10V16A10 10 0 0 1 28 6Z" fill="url(#page)"/>
+  <path d="M78 6v20a10 10 0 0 0 10 10h20Z" fill="#64748b"/>
+  <g transform="translate(12.8 26) scale(0.8)">
+    <path d="M31 37a8 8 0 0 1 8-8h38l8 9h4a8 8 0 0 1 8 8v6H31V37Z" fill="#ffedd5"/>
+    <rect x="25" y="47" width="78" height="58" rx="11" fill="url(#cards)"/>
+    <rect x="39" y="61" width="50" height="7" rx="3.5" fill="#fff7ed"/>
+    <rect x="39" y="76" width="38" height="7" rx="3.5" fill="#fff7ed" fill-opacity=".9"/>
+    <rect x="39" y="91" width="45" height="7" rx="3.5" fill="#fff7ed" fill-opacity=".75"/>
+  </g>
+</svg>
