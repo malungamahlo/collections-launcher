@@ -41,7 +41,7 @@ export interface FileActionNotice {
   readonly actionLabel?: string
 }
 
-/** How opening a file in another application is going. */
+/** How opening a file — in the browser or in another application — is going. */
 type ExternalOpenState =
   | { readonly status: 'idle' }
   /** Reading the file and writing the temporary copy. */
@@ -65,6 +65,8 @@ type ExternalOpenState =
       readonly message: string
       /** Whether trying again could help. */
       readonly canRetry: boolean
+      /** Whether what failed was opening it in its application, so trying again does that. */
+      readonly inApp: boolean
     }
 
 interface UseFileResourceActionsOptions {
@@ -75,10 +77,11 @@ interface UseFileResourceActionsOptions {
   readonly fileDownload: FileDownloadAdapter
 }
 
-/** Works out what to tell the user about a failure to open a file in another application. */
+/** Works out what to tell the user about a failure to open a file. */
 function toErrorState(
   resource: FileResource,
   error: unknown,
+  inApp: boolean,
 ): Extract<ExternalOpenState, { status: 'denied' | 'error' }> {
   if (error instanceof ExternalOpenError && error.code === 'NO_ACCESS') {
     return { status: 'denied', resource }
@@ -90,6 +93,7 @@ function toErrorState(
       resource,
       message: describeFileReadFailure(resource.name, error.code),
       canRetry: error.code !== 'NOT_FOUND',
+      inApp,
     }
   }
 
@@ -102,6 +106,7 @@ function toErrorState(
     resource,
     message: `"${resource.name}" could not be opened. Try again.`,
     canRetry: true,
+    inApp,
   }
 }
 
@@ -201,7 +206,7 @@ export function useFileResourceActions({
       if (error instanceof ExternalOpenError && error.code === 'NEEDS_GESTURE') {
         setState({ status: 'ready', resource, file })
       } else {
-        setState(toErrorState(resource, error))
+        setState(toErrorState(resource, error, true))
       }
     }
   }
@@ -238,7 +243,7 @@ export function useFileResourceActions({
       }
     } catch (error) {
       if (isCurrent()) {
-        setState(toErrorState(resource, error))
+        setState(toErrorState(resource, error, true))
       }
     }
   }
@@ -254,6 +259,7 @@ export function useFileResourceActions({
         resource,
         message: `"${resource.name}" could not be opened. Try again.`,
         canRetry: true,
+        inApp: false,
       })
     }
   }
@@ -272,7 +278,7 @@ export function useFileResourceActions({
     try {
       await fileContent.load(resource.id)
     } catch (error) {
-      setState(toErrorState(resource, error))
+      setState(toErrorState(resource, error, false))
 
       return
     }
@@ -283,7 +289,10 @@ export function useFileResourceActions({
     )
   }
 
-  /** Opens a file resource. Call it straight from a click. */
+  /**
+   * Opens a file resource the default way — in the browser when it can be
+   * shown there, otherwise in its application. Call it straight from a click.
+   */
   function open(resource: FileResource): Promise<void> {
     switch (getViewerStrategy(resource.mimeType)) {
       case 'open-externally':
@@ -291,8 +300,20 @@ export function useFileResourceActions({
       case 'native-pdf':
         return openAsDocument(resource)
       case 'render-markdown':
+      case 'render-word':
+      case 'render-spreadsheet':
+      case 'render-presentation':
         return navigate(resource, buildFileViewerUrl(resource.id))
     }
+  }
+
+  /**
+   * Opens a file resource in its desktop application, even when the browser
+   * could show it — the "Open in Word/Excel/PowerPoint" choice. Call it straight
+   * from a click.
+   */
+  function openInApp(resource: FileResource): Promise<void> {
+    return openExternally(resource)
   }
 
   /** Saves a copy of a file resource the user can keep. Call it straight from a click. */
@@ -315,11 +336,12 @@ export function useFileResourceActions({
         void handOver(state.resource, state.file, ++attemptRef.current)
         break
       case 'denied':
-        void open(state.resource)
+        // Only opening in an application asks for a permission.
+        void openInApp(state.resource)
         break
       case 'error':
         if (state.canRetry) {
-          void open(state.resource)
+          void (state.inApp ? openInApp(state.resource) : open(state.resource))
         }
         break
       default:
@@ -366,6 +388,7 @@ export function useFileResourceActions({
 
   return {
     open,
+    openInApp,
     save,
     notice: describeNotice(),
     runNoticeAction,

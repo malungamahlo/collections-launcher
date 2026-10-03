@@ -14,13 +14,21 @@ export type ViewerStrategy =
   | 'native-pdf'
   /** Rendered as HTML in the app. */
   | 'render-markdown'
+  /** A Word document drawn as pages, in the app. */
+  | 'render-word'
+  /** A workbook shown as its sheets' tables, in the app. */
+  | 'render-spreadsheet'
+  /** A presentation drawn slide by slide, in the app. */
+  | 'render-presentation'
   /**
-   * Meant for the OS's installed application — the default for everything else.
-   * An extension cannot open a file in another app without first saving a copy,
-   * which this app does not do, so today the viewer only explains that such a
-   * file cannot be previewed here (see `useOpenFileResource`).
+   * Shown only by the OS's installed application, through a temporary copy the
+   * user never sees (`ExternalOpenAdapter`) — the default for anything the
+   * browser cannot draw, including the legacy binary `.doc` and `.ppt`.
    */
   | 'open-externally'
+
+/** The desktop application a kind of file can also be opened in. */
+export type ResourceAppName = 'Word' | 'Excel' | 'PowerPoint'
 
 /**
  * Identifies an icon without importing one. The model layer stays free of
@@ -41,6 +49,11 @@ export interface ResourceFormat {
   readonly mimeType: string
   /** Lower-case extensions including the dot, e.g. `['.md', '.markdown']`. */
   readonly extensions: readonly string[]
+  /**
+   * How this one format opens, when that differs from its kind — a `.docx` can
+   * be drawn in the browser, but the legacy binary `.doc` cannot.
+   */
+  readonly viewer?: ViewerStrategy
 }
 
 /** Everything the app knows about one kind of file resource. */
@@ -51,6 +64,8 @@ export interface ResourceKind {
   readonly label: string
   readonly iconKey: ResourceIconKey
   readonly viewer: ViewerStrategy
+  /** The desktop application this kind can also be opened in, if any. */
+  readonly appName?: ResourceAppName
   /** The formats belonging to this kind; the file picker offers exactly these. */
   readonly formats: readonly ResourceFormat[]
 }
@@ -73,8 +88,10 @@ export const DEFAULT_RESOURCE_KIND: ResourceKind = {
 
 /**
  * The seeded kinds. Word, Excel, and PowerPoint each list both the current
- * OOXML type and the legacy binary type; all of them are `open-externally`,
- * which is the strategy anything without a native viewer gets.
+ * OOXML type and the legacy binary type. The browser draws the OOXML ones (and
+ * a legacy `.xls`, which the spreadsheet reader also understands); a legacy
+ * `.doc` or `.ppt` opens only in its application. Every Office kind can also
+ * be opened in its application on request.
  */
 export const RESOURCE_KINDS: readonly ResourceKind[] = [
   {
@@ -97,21 +114,27 @@ export const RESOURCE_KINDS: readonly ResourceKind[] = [
     id: 'word',
     label: 'Word document',
     iconKey: 'file-type',
-    viewer: 'open-externally',
+    viewer: 'render-word',
+    appName: 'Word',
     formats: [
       {
         mimeType:
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         extensions: ['.docx'],
       },
-      { mimeType: 'application/msword', extensions: ['.doc'] },
+      {
+        mimeType: 'application/msword',
+        extensions: ['.doc'],
+        viewer: 'open-externally',
+      },
     ],
   },
   {
     id: 'excel',
     label: 'Excel workbook',
     iconKey: 'file-spreadsheet',
-    viewer: 'open-externally',
+    viewer: 'render-spreadsheet',
+    appName: 'Excel',
     formats: [
       {
         mimeType:
@@ -125,14 +148,19 @@ export const RESOURCE_KINDS: readonly ResourceKind[] = [
     id: 'powerpoint',
     label: 'PowerPoint presentation',
     iconKey: 'presentation',
-    viewer: 'open-externally',
+    viewer: 'render-presentation',
+    appName: 'PowerPoint',
     formats: [
       {
         mimeType:
           'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         extensions: ['.pptx'],
       },
-      { mimeType: 'application/vnd.ms-powerpoint', extensions: ['.ppt'] },
+      {
+        mimeType: 'application/vnd.ms-powerpoint',
+        extensions: ['.ppt'],
+        viewer: 'open-externally',
+      },
     ],
   },
 ]
@@ -159,9 +187,45 @@ export function getResourceKind(mimeType: string): ResourceKind {
   )
 }
 
-/** How a file with this MIME type is opened. Unlisted types are `open-externally`. */
+/** The registered format a MIME type names, if any. */
+function findFormat(mimeType: string): ResourceFormat | undefined {
+  const normalizedMimeType = normalizeMimeType(mimeType)
+
+  return RESOURCE_KINDS.flatMap(kind => kind.formats).find(
+    format => format.mimeType === normalizedMimeType,
+  )
+}
+
+/**
+ * How a file with this MIME type is opened when its row is clicked: its
+ * format's own strategy if it has one, otherwise its kind's. Unlisted types are
+ * `open-externally`.
+ */
 export function getViewerStrategy(mimeType: string): ViewerStrategy {
-  return getResourceKind(mimeType).viewer
+  return findFormat(mimeType)?.viewer ?? getResourceKind(mimeType).viewer
+}
+
+/** The ways a file of some type can be opened, for offering them as choices. */
+export interface ResourceOpenOptions {
+  /** Whether the browser can show it (in its own tab, like a website). */
+  readonly inBrowser: boolean
+  /** The desktop application it can also be opened in, if any. */
+  readonly appName?: ResourceAppName
+}
+
+/**
+ * Which ways of opening a file to offer, so no component has to branch on a
+ * format. Everything the registry knows how to draw — PDF, Markdown, and the
+ * Office formats the browser can show — opens in the browser; every Office
+ * kind can also open in its application.
+ */
+export function getOpenOptions(mimeType: string): ResourceOpenOptions {
+  const { appName } = getResourceKind(mimeType)
+
+  return {
+    inBrowser: getViewerStrategy(mimeType) !== 'open-externally',
+    ...(appName ? { appName } : {}),
+  }
 }
 
 /**

@@ -18,7 +18,7 @@ The guide is generic; this is the current shape of the repo, so the two are not
 confused with each other.
 
 - `src/features/collections/` — the **canonical domain** (`model/`, `hooks/`,
-  `components/`, `storage/`, `test/`). Other modules depend on it; it imports
+  `components/`, `storage/`, `services/`, `documents/`, `test/`). Other modules depend on it; it imports
   nothing from `engine/` or `features/capture/` (it does use `shared/` UI
   primitives).
 - `src/features/capture/` — toolbar-popup capture; uses the collections domain.
@@ -62,9 +62,29 @@ confused with each other.
     http/https/mailto links survive, images are never loaded, and only the first 200 KB
     is rendered. The renderer is `React.lazy`-loaded so it stays out of the entry
     chunk; keep it that way.
-  - Anything else (Word, Excel, PowerPoint) opens in the OS's own application (below).
-    Every file row has **Save a copy**. Don't add app-level chrome (a name, a
-    save/download control, anything) around a file's document.
+  - **Office files open in the browser by default** (a user rule, modelled on Teams and
+    WhatsApp), **drawn locally**; nothing is uploaded, and the user chose this over
+    Microsoft's online viewers. On `viewer.html`, a `.docx` becomes pages through
+    `docx-preview`, drawn into a **shadow root** so the app's Tailwind reset and the
+    document's styles never meet, then made safe by `documents/secure-rendered-document.ts`.
+    A workbook (`.xlsx` and legacy `.xls`) goes through SheetJS (`xlsx`, installed from
+    the cdn.sheetjs.com tarball because the npm copy is stale) into our own grid. A
+    `.pptx` goes through **our own reader** (`documents/presentation-reader.ts`: JSZip + an
+    injected XML parser, following slide → layout → master → theme) into positioned
+    boxes. `pptx-preview` was tried and rejected: it dropped most text and is closed
+    source. Readers live in `features/collections/documents/`, map library output to
+    our own types at the boundary, cap sizes (`document-limits.ts`, `BROWSER_VIEW_MAX_BYTES`,
+    zip-bomb budget in `office-package.ts`), and are `import()`-ed lazily, as each view
+    is `React.lazy`-loaded. Keep all of them out of the entry chunk. Too large or damaged
+    → `cannot-display` with "Open it in Word/Excel/PowerPoint from your collections".
+    Tests parse XML with `@xmldom/xmldom`, because happy-dom can't do namespaced XML.
+  - Legacy `.doc`/`.ppt` (a per-format `viewer` override in the registry) and unknown
+    types open in the OS's own application (below). Every file row has a **⋯ "Open with…"
+    menu** (`shared/components/ui/menu.tsx`, portalled and fixed-positioned so the
+    card's clipping can't cut it off). From `getOpenOptions` it offers *Open in browser*,
+    *Open in Word/Excel/PowerPoint* (`useFileResourceActions.openInApp`), and *Save a
+    copy*. Don't add app-level chrome (a name, a save/download control, anything) around
+    a file's document.
 - **Copies of a user's files.** A locally added file is stored as a reference (a
   `FileSystemFileHandle`), never a stored duplicate; sync is planned and piled-up copies
   are unwanted. The one sanctioned copy is the **temporary one made to open an Office
@@ -77,7 +97,7 @@ confused with each other.
   believing it is the original. A copy that lasts exists only when the user presses
   **Save a copy** (an ordinary visible download through `FileDownloadAdapter`). Never make
   the hidden copy visible, and never keep one. Three optional permissions (`downloads`,
-  `downloads.open`, `downloads.ui`) are asked for the first time an Office file is opened,
+  `downloads.open`, `downloads.ui`) are asked for the first time an Office file is opened in its app,
   from the click itself; `downloads.open` also needs a click within ~5 seconds, hence the
   "ready — Open" fallback. (See `documentation/Logic Doc/v3/11-…`.)
 - `src/shared/` — generic UI primitives (`components/ui`), hooks, `lib`, styles.
@@ -113,7 +133,9 @@ real application.
 
 - **Test documents** come from
   `C:\Users\Malunga Mahlo\Documents\Malunga\Projects\Collection Notes\Tests` (today: a
-  Markdown file, a PDF, and a legacy Word `.doc`). `tests/add-files.spec.ts` makes one
+  Markdown file, a PDF, a legacy Word `.doc`, and `generated-sample.docx/.xlsx/.pptx`,
+  small files generated for the tests, not the user's own). A hostile `.docx` lives in
+  `playwright-tests\office-fixtures`, never in the test folder. `tests/add-files.spec.ts` makes one
   test per supported file in that folder, so adding a file there adds a test.
 - **Exported collections** are written to, and imported back from,
   `...\Collection Notes\Tests\exports` (a subfolder, so generated `.collectionLauncher`

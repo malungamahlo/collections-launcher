@@ -300,6 +300,11 @@ function App() {
                   ? undefined
                   : resource => void fileActions.save(resource)
               }
+              onOpenFileInApp={
+                isDevelopmentPreview
+                  ? undefined
+                  : resource => void fileActions.openInApp(resource)
+              }
               onOpenAll={handleOpenAll}
               onEditCollection={
                 isDevelopmentPreview ? undefined : management.openEdit

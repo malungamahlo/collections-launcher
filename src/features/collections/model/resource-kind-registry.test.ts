@@ -3,6 +3,7 @@ import {
   DEFAULT_RESOURCE_KIND,
   getFileExtension,
   getFilePickerTypes,
+  getOpenOptions,
   getResourceKind,
   getViewerStrategy,
   inferMimeType,
@@ -20,15 +21,22 @@ const PPTX =
   'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 
 describe('registry contents', () => {
-  it('only ever uses the three supported viewer strategies', () => {
+  it('only ever uses the supported viewer strategies, for kinds and formats alike', () => {
     const allowed: readonly ViewerStrategy[] = [
       'native-pdf',
       'render-markdown',
+      'render-word',
+      'render-spreadsheet',
+      'render-presentation',
       'open-externally',
     ]
 
     for (const kind of [...RESOURCE_KINDS, DEFAULT_RESOURCE_KIND]) {
       expect(allowed).toContain(kind.viewer)
+
+      for (const format of kind.formats) {
+        expect([undefined, ...allowed]).toContain(format.viewer)
+      }
     }
   })
 
@@ -58,20 +66,42 @@ describe('registry contents', () => {
     expect(getViewerStrategy('text/markdown')).toBe('render-markdown')
   })
 
-  it('opens Word, Excel, and PowerPoint externally, in both current and legacy formats', () => {
-    const officeMimeTypes = [
-      DOCX,
-      'application/msword',
-      XLSX,
-      'application/vnd.ms-excel',
-      PPTX,
-      'application/vnd.ms-powerpoint',
-    ]
+  it.each([
+    [DOCX, 'render-word'],
+    [XLSX, 'render-spreadsheet'],
+    ['application/vnd.ms-excel', 'render-spreadsheet'],
+    [PPTX, 'render-presentation'],
+  ] as const)('draws %s in the browser (%s)', (mimeType, strategy) => {
+    expect(getViewerStrategy(mimeType)).toBe(strategy)
+  })
 
-    for (const mimeType of officeMimeTypes) {
+  it.each([['application/msword'], ['application/vnd.ms-powerpoint']])(
+    'opens the legacy %s only in its application: the browser cannot draw it',
+    mimeType => {
       expect(getResourceKind(mimeType)).not.toBe(DEFAULT_RESOURCE_KIND)
       expect(getViewerStrategy(mimeType)).toBe('open-externally')
-    }
+    },
+  )
+
+  it('lets a format override its kind’s strategy, ignoring case and parameters', () => {
+    expect(getViewerStrategy('Application/MSWord; foo=bar')).toBe('open-externally')
+    expect(getResourceKind('application/msword').viewer).toBe('render-word')
+  })
+})
+
+describe('getOpenOptions', () => {
+  it.each([
+    [DOCX, { inBrowser: true, appName: 'Word' }],
+    ['application/msword', { inBrowser: false, appName: 'Word' }],
+    [XLSX, { inBrowser: true, appName: 'Excel' }],
+    ['application/vnd.ms-excel', { inBrowser: true, appName: 'Excel' }],
+    [PPTX, { inBrowser: true, appName: 'PowerPoint' }],
+    ['application/vnd.ms-powerpoint', { inBrowser: false, appName: 'PowerPoint' }],
+    ['application/pdf', { inBrowser: true }],
+    ['text/markdown', { inBrowser: true }],
+    ['application/x-something-new', { inBrowser: false }],
+  ])('offers %s these ways to open', (mimeType, expected) => {
+    expect(getOpenOptions(mimeType)).toEqual(expected)
   })
 })
 

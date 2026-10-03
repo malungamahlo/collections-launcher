@@ -1,20 +1,26 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Download, GripVertical, Trash2 } from 'lucide-react'
+import { AppWindow, Download, Ellipsis, Globe, GripVertical, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@app/shared/components/ui/button'
+import { Menu, type MenuItem } from '@app/shared/components/ui/menu'
 import { usePrefersReducedMotion } from '@app/shared/hooks/use-prefers-reduced-motion'
 import { formatFileSize } from '@app/shared/lib/format-file-size'
 import { cn } from '@app/shared/lib/utils'
 import type { FileResource } from '../model/collection.types'
-import { getResourceKind } from '../model/resource-kind-registry'
+import { getOpenOptions, getResourceKind } from '../model/resource-kind-registry'
 import { RESOURCE_ICONS } from './resource-icons'
 
 interface FileResourceItemProps {
   readonly resource: FileResource
-  /** When given, the row can be opened; without it the row is display-only. */
+  /**
+   * When given, the row can be opened — the default way: in the browser when it
+   * can be shown there, else in its application. Without it the row is display-only.
+   */
   readonly onOpen?: (resource: FileResource) => void
-  /** When given, the row offers to save a copy of the file. */
+  /** When given, an Office file's menu offers to open it in its desktop application. */
+  readonly onOpenInApp?: (resource: FileResource) => void
+  /** When given, the menu offers to save a copy of the file. */
   readonly onSave?: (resource: FileResource) => void
   readonly onDelete?: (resource: FileResource) => void
   readonly isReorderable?: boolean
@@ -30,12 +36,32 @@ interface FileResourceItemProps {
 export function FileResourceItem({
   resource,
   onOpen,
+  onOpenInApp,
   onSave,
   onDelete,
   isReorderable = false,
   isHighlighted = false,
 }: FileResourceItemProps) {
   const kind = getResourceKind(resource.mimeType)
+  const openOptions = getOpenOptions(resource.mimeType)
+  // The "Open with…" choices: every way this file can be opened, then a copy to keep.
+  const menuItems: MenuItem[] = [
+    ...(onOpen && openOptions.inBrowser
+      ? [{ label: 'Open in browser', icon: <Globe className="size-4" />, onSelect: () => onOpen(resource) }]
+      : []),
+    ...(onOpenInApp && openOptions.appName
+      ? [
+          {
+            label: `Open in ${openOptions.appName}`,
+            icon: <AppWindow className="size-4" />,
+            onSelect: () => onOpenInApp(resource),
+          },
+        ]
+      : []),
+    ...(onSave
+      ? [{ label: 'Save a copy', icon: <Download className="size-4" />, onSelect: () => onSave(resource) }]
+      : []),
+  ]
   const KindIcon = RESOURCE_ICONS[kind.iconKey]
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: resource.id, disabled: !isReorderable })
@@ -112,16 +138,14 @@ export function FileResourceItem({
         </div>
       )}
 
-      {onSave && (
-        <Button
-          variant="secondary"
-          className="size-9 shrink-0 px-0 hover:bg-slate-300"
-          aria-label={`Save a copy of ${resource.name}`}
-          title={`Save a copy of ${resource.name}`}
-          onClick={() => onSave(resource)}
+      {menuItems.length > 0 && (
+        <Menu
+          label={`More options for ${resource.name}`}
+          items={menuItems}
+          triggerClassName="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card text-card-foreground transition-colors hover:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <Download className="size-4" aria-hidden="true" />
-        </Button>
+          <Ellipsis className="size-4" aria-hidden="true" />
+        </Menu>
       )}
 
       {onDelete && (

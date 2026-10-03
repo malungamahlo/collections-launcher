@@ -4,12 +4,23 @@ import {
   type FileContentAdapter,
   type FileContentErrorCode,
 } from '@app/platform/browser/file-content.adapter'
+import type { ParseXml } from '../documents/office-package'
+import type { Presentation } from '../documents/presentation.types'
+import type { Workbook } from '../documents/spreadsheet.types'
 import type { FileResource } from '../model/collection.types'
 import { buildFileDocumentUrl } from '../model/file-document-location'
 import { getFileResourceFileName } from '../model/file-name'
 import { MARKDOWN_PREVIEW_MAX_BYTES } from '../model/markdown-preview'
-import { getViewerStrategy } from '../model/resource-kind-registry'
-import { describeFileReadFailure } from './file-read-messages'
+import {
+  getResourceKind,
+  getViewerStrategy,
+  type ViewerStrategy,
+} from '../model/resource-kind-registry'
+import {
+  describeCannotDisplay,
+  describeFileReadFailure,
+  type CannotDisplayReason,
+} from './file-read-messages'
 
 /**
  * What the viewer page is showing. A discriminated union rather than a bag of
@@ -30,6 +41,17 @@ export type FileViewerState =
    * browser's own viewer still renders it, but under a made-up name.
    */
   | { readonly status: 'pdf'; readonly blob: Blob }
+  /** A Word document's bytes, for the page to draw. */
+  | { readonly status: 'word'; readonly blob: Blob }
+  /** A workbook's sheets, read and ready to show. */
+  | { readonly status: 'spreadsheet'; readonly workbook: Workbook }
+  /** A presentation's slides, read and ready to draw. */
+  | { readonly status: 'presentation'; readonly presentation: Presentation }
+  /**
+   * The file was read, but the browser cannot show it: too large to draw, or
+   * not the kind of file its type says. Its application can.
+   */
+  | { readonly status: 'cannot-display'; readonly message: string }
   /** A Markdown file's text, ready to be rendered. */
   | {
       readonly status: 'markdown'
@@ -65,6 +87,90 @@ interface UseFileViewerOptions {
    * its first read (which could loop) — only after the user presses Try again.
    */
   readonly documentUnavailable?: boolean
+  /** Parses XML for the presentation reader; the browser's `DOMParser` by default. */
+  readonly parseXml?: ParseXml
+}
+
+/**
+ * The largest file of each drawn kind the page tries to show. Past this the
+ * browser would take too long or too much memory to draw it; its application
+ * is offered instead.
+ */
+export const BROWSER_VIEW_MAX_BYTES: Readonly<
+  Record<'render-word' | 'render-spreadsheet' | 'render-presentation', number>
+> = {
+  'render-word': 30 * 1024 * 1024,
+  'render-spreadsheet': 30 * 1024 * 1024,
+  'render-presentation': 150 * 1024 * 1024,
+}
+
+const parseXmlWithDomParser: ParseXml = text =>
+  new DOMParser().parseFromString(text, 'application/xml')
+
+/** Thrown while reading a file for the page when it cannot be shown in the browser. */
+class CannotDisplayError extends Error {
+  constructor(readonly reason: CannotDisplayReason) {
+    super(reason)
+    this.name = 'CannotDisplayError'
+  }
+}
+
+/**
+ * Reads an Office file for the page. The readers are loaded only when needed —
+ * they are large, and most files opened are not spreadsheets or decks.
+ */
+async function readOfficeFile(
+  strategy: 'render-word' | 'render-spreadsheet' | 'render-presentation',
+  blob: Blob,
+  parseXml: ParseXml,
+): Promise<FileViewerState> {
+  if (blob.size > BROWSER_VIEW_MAX_BYTES[strategy]) {
+    throw new CannotDisplayError('too-large')
+  }
+
+  try {
+    switch (strategy) {
+      case 'render-word': {
+        // The page draws it, but check it is a Word document first, so a
+        // damaged file gets the same message a damaged workbook or deck does.
+        const { default: JSZip } = await import('jszip')
+        const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+
+        if (!zip.file('word/document.xml')) {
+          throw new Error('Not a Word document.')
+        }
+
+        return { status: 'word', blob }
+      }
+      case 'render-spreadsheet': {
+        const { readWorkbook } = await import('../documents/spreadsheet-reader')
+
+        return { status: 'spreadsheet', workbook: readWorkbook(await blob.arrayBuffer()) }
+      }
+      case 'render-presentation': {
+        const { readPresentation } = await import('../documents/presentation-reader')
+
+        return {
+          status: 'presentation',
+          presentation: await readPresentation(await blob.arrayBuffer(), { parseXml }),
+        }
+      }
+    }
+  } catch (error) {
+    const isTooLarge = error instanceof Error && /too large/i.test(error.message)
+
+    throw new CannotDisplayError(isTooLarge ? 'too-large' : 'unreadable')
+  }
+}
+
+function isOfficeStrategy(
+  strategy: ViewerStrategy,
+): strategy is 'render-word' | 'render-spreadsheet' | 'render-presentation' {
+  return (
+    strategy === 'render-word' ||
+    strategy === 'render-spreadsheet' ||
+    strategy === 'render-presentation'
+  )
 }
 
 /** Turns loaded bytes into a Markdown state. */
@@ -84,7 +190,12 @@ async function readMarkdown(blob: Blob): Promise<FileViewerState> {
  * so no format is named here — a PDF and a Markdown file differ only in what
  * the viewer strategy says.
  *
- * A Markdown file is rendered here. A PDF is not: once it is known to be
+ * A Markdown file is rendered here, and so is an Office file the browser can
+ * draw: a Word document's pages, a workbook's sheets, a presentation's
+ * slides — read on this machine by the extension's own readers, never
+ * uploaded. One too large to draw, or not what its type says, gets
+ * `cannot-display` and a pointer to its application. A PDF is not shown
+ * here: once it is known to be
  * readable — which, after a browser restart, may first need the user to grant
  * access again with **Try again** — the page is replaced by its document
  * address, where the browser shows it as a document of its own.
@@ -98,6 +209,7 @@ export function useFileViewer({
   resource,
   replaceLocation,
   documentUnavailable = false,
+  parseXml = parseXmlWithDomParser,
 }: UseFileViewerOptions): {
   readonly state: FileViewerState
   readonly retry: () => void
@@ -126,8 +238,12 @@ export function useFileViewer({
           return
         }
 
-        if (strategy === 'render-markdown') {
-          return readMarkdown(blob).then(next => {
+        if (strategy === 'render-markdown' || isOfficeStrategy(strategy)) {
+          return (
+            strategy === 'render-markdown'
+              ? readMarkdown(blob)
+              : readOfficeFile(strategy, blob, parseXml)
+          ).then(next => {
             if (isCurrent) {
               setState(next)
             }
@@ -145,6 +261,15 @@ export function useFileViewer({
       })
       .catch((error: unknown) => {
         if (!isCurrent) {
+          return
+        }
+
+        if (error instanceof CannotDisplayError) {
+          setState({
+            status: 'cannot-display',
+            message: describeCannotDisplay(name, error.reason, getResourceKind(mimeType).appName),
+          })
+
           return
         }
 
@@ -174,6 +299,8 @@ export function useFileViewer({
     documentUrl,
     documentUnavailable,
     replaceLocation,
+    parseXml,
+    mimeType,
   ])
 
   /** Reads the file again — from a click, so a lapsed permission can be re-granted. */

@@ -1,16 +1,37 @@
-import { lazy, Suspense, useCallback, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useState, type ReactNode } from 'react'
 import { Button } from '@app/shared/components/ui/button'
 import { formatFileSize } from '@app/shared/lib/format-file-size'
 import { cn } from '@app/shared/lib/utils'
+import { describeCannotDisplay } from '../hooks/file-read-messages'
 import type { FileViewerState } from '../hooks/use-file-viewer'
 import type { FileResource } from '../model/collection.types'
 import { MARKDOWN_PREVIEW_MAX_BYTES } from '../model/markdown-preview'
+import { getResourceKind } from '../model/resource-kind-registry'
 
 // The Markdown renderer is the heaviest part of the viewer and most files
 // opened are not Markdown, so it is loaded the first time one is shown.
 const MarkdownView = lazy(() =>
   import('./markdown-view').then(module => ({ default: module.MarkdownView })),
 )
+// The same goes for each Office view: each is loaded only when a file of its kind is shown.
+const WordView = lazy(() =>
+  import('./word-view').then(module => ({ default: module.WordView })),
+)
+const SpreadsheetView = lazy(() =>
+  import('./spreadsheet-view').then(module => ({ default: module.SpreadsheetView })),
+)
+const PresentationView = lazy(() =>
+  import('./presentation-view').then(module => ({ default: module.PresentationView })),
+)
+
+/** What shows while a view's code is still loading. */
+function Loading() {
+  return (
+    <p role="status" className="p-6 text-sm text-muted-foreground">
+      Opening file…
+    </p>
+  )
+}
 
 interface FileViewerProps {
   readonly resource: FileResource
@@ -84,17 +105,24 @@ function Notice({
 
 /**
  * The page a file resource is viewed on: the document itself — a rendered
- * Markdown file filling the tab — or a message. It renders the state the
- * viewer hook is in and owns no logic of its own.
+ * Markdown file, a Word document's pages, a workbook's sheets, a deck's
+ * slides — or a message. It renders the state the viewer hook is in and owns
+ * no logic of its own.
  *
  * **Nothing of the app's own surrounds the document**: no header, no kind or
- * size, no Save a copy button. The tab title already names the file
- * (`useDocumentTitle`, set by the caller), and the file's row on the dashboard
- * already offers Save a copy, so the page holds the document and nothing
+ * size, no Save a copy or Open in app button. The tab title already names the
+ * file (`useDocumentTitle`, set by the caller), and the file's row on the
+ * dashboard has the "Open with…" menu, so the page holds the document and nothing
  * else — the way a file opened straight from disk does. A PDF does not stay on
  * this page at all; it goes on to be the browser's own document.
  */
 export function FileViewer({ resource, state, onRetry }: FileViewerProps) {
+  // A Word document is checked before it reaches the page, but is only drawn
+  // here; if drawing it fails after all, say so the same way.
+  const [wordFailed, setWordFailed] = useState(false)
+  const handleWordError = useCallback(() => setWordFailed(true), [])
+  const cannotDisplay = (reason: 'unreadable') =>
+    describeCannotDisplay(resource.name, reason, getResourceKind(resource.mimeType).appName)
   let body: ReactNode
 
   switch (state.status) {
@@ -130,6 +158,32 @@ export function FileViewer({ resource, state, onRetry }: FileViewerProps) {
         </article>
       )
       break
+    case 'word':
+      body = wordFailed ? (
+        <Notice message={cannotDisplay('unreadable')} />
+      ) : (
+        <Suspense fallback={<Loading />}>
+          <WordView blob={state.blob} onError={handleWordError} />
+        </Suspense>
+      )
+      break
+    case 'spreadsheet':
+      body = (
+        <Suspense fallback={<Loading />}>
+          <SpreadsheetView workbook={state.workbook} />
+        </Suspense>
+      )
+      break
+    case 'presentation':
+      body = (
+        <Suspense fallback={<Loading />}>
+          <PresentationView presentation={state.presentation} />
+        </Suspense>
+      )
+      break
+    case 'cannot-display':
+      body = <Notice message={state.message} />
+      break
     case 'unsupported':
       body = (
         <Notice
@@ -157,7 +211,10 @@ export function FileViewer({ resource, state, onRetry }: FileViewerProps) {
       <main
         className={cn(
           'min-h-0 flex-1',
-          state.status === 'pdf' ? 'overflow-hidden' : 'overflow-y-auto',
+          // A PDF frame and a spreadsheet's grid scroll inside themselves.
+          state.status === 'pdf' || state.status === 'spreadsheet'
+            ? 'overflow-hidden'
+            : 'overflow-y-auto',
         )}
       >
         {body}

@@ -63,13 +63,14 @@ describe('CollectionCard opening resources', () => {
     )
 
     await user.click(
-      screen.getByRole('button', { name: 'Save a copy of Handbook' }),
+      screen.getByRole('button', { name: 'More options for Handbook' }),
     )
+    await user.click(screen.getByRole('menuitem', { name: 'Save a copy' }))
 
     expect(onSaveFile).toHaveBeenCalledExactlyOnceWith(file)
-    // A website has nothing to save a copy of.
+    // A website has no such menu: nothing to save a copy of.
     expect(
-      screen.queryByRole('button', { name: 'Save a copy of GitHub' }),
+      screen.queryByRole('button', { name: 'More options for GitHub' }),
     ).toBeNull()
   })
 
@@ -83,7 +84,7 @@ describe('CollectionCard opening resources', () => {
     )
 
     expect(
-      screen.queryByRole('button', { name: 'Save a copy of Handbook' }),
+      screen.queryByRole('button', { name: 'More options for Handbook' }),
     ).toBeNull()
   })
 
@@ -132,8 +133,9 @@ describe('CollectionGrid opening files', () => {
     )
 
     await user.click(
-      screen.getByRole('button', { name: 'Save a copy of Handbook' }),
+      screen.getByRole('button', { name: 'More options for Handbook' }),
     )
+    await user.click(screen.getByRole('menuitem', { name: 'Save a copy' }))
 
     expect(onSaveFile).toHaveBeenCalledExactlyOnceWith(file)
   })

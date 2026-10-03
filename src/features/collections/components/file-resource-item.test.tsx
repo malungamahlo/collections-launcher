@@ -143,8 +143,9 @@ describe('FileResourceItem', () => {
     )
 
     await user.click(
-      screen.getByRole('button', { name: 'Save a copy of Handbook' }),
+      screen.getByRole('button', { name: 'More options for Handbook' }),
     )
+    await user.click(screen.getByRole('menuitem', { name: 'Save a copy' }))
 
     expect(onSave).toHaveBeenCalledExactlyOnceWith(resource)
     expect(onOpen).not.toHaveBeenCalled()
@@ -167,5 +168,89 @@ describe('FileResourceItem', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Reorder Handbook' })).not.toBeNull()
+  })
+
+  describe('the "Open with…" menu', () => {
+    const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+    function renderRow(mimeType: string) {
+      const handlers = { onOpen: vi.fn(), onOpenInApp: vi.fn(), onSave: vi.fn() }
+      const resource = createTestFileResource({ name: 'Report', mimeType })
+      render(
+        <ul>
+          <FileResourceItem resource={resource} {...handlers} />
+        </ul>,
+      )
+
+      return { resource, ...handlers }
+    }
+
+    async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole('button', { name: 'More options for Report' }))
+
+      return screen.getAllByRole('menuitem').map(item => item.textContent)
+    }
+
+    it.each([
+      [DOCX, ['Open in browser', 'Open in Word', 'Save a copy']],
+      ['application/msword', ['Open in Word', 'Save a copy']],
+      ['application/vnd.ms-excel', ['Open in browser', 'Open in Excel', 'Save a copy']],
+      [
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        ['Open in browser', 'Open in PowerPoint', 'Save a copy'],
+      ],
+      ['application/vnd.ms-powerpoint', ['Open in PowerPoint', 'Save a copy']],
+      ['application/pdf', ['Open in browser', 'Save a copy']],
+      ['text/markdown', ['Open in browser', 'Save a copy']],
+    ])('offers a %s file exactly the ways it can be opened', async (mimeType, expected) => {
+      const user = userEvent.setup()
+      renderRow(mimeType)
+
+      expect(await openMenu(user)).toEqual(expected)
+    })
+
+    it.each([
+      ['Open in browser', 'onOpen'],
+      ['Open in Word', 'onOpenInApp'],
+      ['Save a copy', 'onSave'],
+    ] as const)('"%s" calls %s with the file, and nothing else', async (label, handler) => {
+      const user = userEvent.setup()
+      const handlers = renderRow(DOCX)
+      await openMenu(user)
+
+      await user.click(screen.getByRole('menuitem', { name: label }))
+
+      expect(handlers[handler]).toHaveBeenCalledExactlyOnceWith(handlers.resource)
+      for (const other of ['onOpen', 'onOpenInApp', 'onSave'] as const) {
+        if (other !== handler) {
+          expect(handlers[other]).not.toHaveBeenCalled()
+        }
+      }
+      expect(screen.queryByRole('menu')).toBeNull()
+    })
+
+    it('still opens the row itself the default way when the row is clicked', async () => {
+      const user = userEvent.setup()
+      const handlers = renderRow(DOCX)
+
+      await user.click(screen.getByRole('button', { name: 'Open Report' }))
+
+      expect(handlers.onOpen).toHaveBeenCalledExactlyOnceWith(handlers.resource)
+      expect(screen.queryByRole('menu')).toBeNull()
+    })
+
+    it('leaves out a choice whose handler is not given', async () => {
+      const user = userEvent.setup()
+      render(
+        <ul>
+          <FileResourceItem
+            resource={createTestFileResource({ name: 'Report', mimeType: DOCX })}
+            onSave={() => undefined}
+          />
+        </ul>,
+      )
+
+      expect(await openMenu(user)).toEqual(['Save a copy'])
+    })
   })
 })

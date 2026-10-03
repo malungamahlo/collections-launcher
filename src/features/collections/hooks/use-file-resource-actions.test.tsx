@@ -225,6 +225,65 @@ describe('when the tab cannot be navigated', () => {
   })
 })
 
+describe('opening an Office file in the browser, the default', () => {
+  it.each([
+    ['a Word document', WORD],
+    ['an old Excel workbook', SPREADSHEET],
+    [
+      'a PowerPoint presentation',
+      createTestFileResource({
+        id: 'ppt-1',
+        name: 'Deck',
+        mimeType:
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      }),
+    ],
+  ])('shows %s on its own page, without touching its application', async (_label, resource) => {
+    const adapters = createAdapters()
+    const { result } = await renderActions(adapters)
+
+    await act(() => result.current.open(resource))
+
+    expect(adapters.tabs.open).toHaveBeenCalledExactlyOnceWith(
+      buildFileViewerUrl(resource.id),
+    )
+    expect(adapters.externalOpen.requestAccess).not.toHaveBeenCalled()
+    expect(adapters.externalOpen.prepare).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an old Word .doc', 'application/msword'],
+    ['an old PowerPoint .ppt', 'application/vnd.ms-powerpoint'],
+    ['a type the registry does not know', 'application/x-something-new'],
+  ])('opens %s in its application, since the browser cannot show it', async (_label, mimeType) => {
+    const adapters = createAdapters()
+    const { result } = await renderActions(adapters)
+
+    await act(() =>
+      result.current.open(createTestFileResource({ id: 'old-1', mimeType })),
+    )
+
+    expect(adapters.externalOpen.open).toHaveBeenCalledExactlyOnceWith(PREPARED)
+    expect(adapters.tabs.open).not.toHaveBeenCalled()
+  })
+
+  it('tries the browser again, not the application, when that failed', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const adapters = createAdapters()
+    adapters.tabs.open.mockRejectedValueOnce(new Error('nope'))
+    const { result } = await renderActions(adapters)
+    await act(() => result.current.open(WORD))
+
+    await act(async () => {
+      result.current.runNoticeAction()
+      await Promise.resolve()
+    })
+
+    expect(adapters.tabs.open).toHaveBeenCalledTimes(2)
+    expect(adapters.externalOpen.prepare).not.toHaveBeenCalled()
+  })
+})
+
 describe('opening a file in its own application', () => {
   it.each([
     ['a Word document', WORD],
@@ -241,7 +300,7 @@ describe('opening a file in its own application', () => {
     const adapters = createAdapters()
     const { result } = await renderActions(adapters)
 
-    await act(() => result.current.open(resource))
+    await act(() => result.current.openInApp(resource))
 
     expect(adapters.fileContentSpies.load).toHaveBeenCalledWith(resource.id)
     expect(adapters.externalOpen.prepare).toHaveBeenCalledTimes(1)
@@ -254,8 +313,8 @@ describe('opening a file in its own application', () => {
     const adapters = createAdapters()
     const { result } = await renderActions(adapters)
 
-    await act(() => result.current.open(WORD))
-    await act(() => result.current.open(SPREADSHEET))
+    await act(() => result.current.openInApp(WORD))
+    await act(() => result.current.openInApp(SPREADSHEET))
 
     expect(adapters.externalOpen.prepare.mock.calls).toEqual([
       ['Contract.docx', CONTENT],
@@ -268,7 +327,7 @@ describe('opening a file in its own application', () => {
     const { result } = await renderActions(adapters)
 
     act(() => {
-      void result.current.open(WORD)
+      void result.current.openInApp(WORD)
     })
 
     // Nothing has been awaited yet: this is still the click.
@@ -288,7 +347,7 @@ describe('opening a file in its own application', () => {
 
     let opening!: Promise<void>
     act(() => {
-      opening = result.current.open(WORD)
+      opening = result.current.openInApp(WORD)
     })
     expect(result.current.notice).toEqual({
       tone: 'info',
@@ -312,7 +371,7 @@ describe('opening a file in its own application', () => {
     const adapters = createAdapters()
     const { result } = await renderActions(adapters)
 
-    await act(() => result.current.open(WORD))
+    await act(() => result.current.openInApp(WORD))
 
     expect(result.current.notice?.message.toLowerCase()).not.toContain('download')
   })
@@ -320,7 +379,7 @@ describe('opening a file in its own application', () => {
   it('takes the "Opened" notice down by itself after ten seconds', async () => {
     const adapters = createAdapters()
     const { result } = await renderActions(adapters)
-    await act(() => result.current.open(WORD))
+    await act(() => result.current.openInApp(WORD))
     expect(result.current.notice).toBeDefined()
 
     await act(async () => {
@@ -338,7 +397,7 @@ describe('opening a file in its own application', () => {
     const adapters = createAdapters()
     const { result } = await renderActions(adapters)
     adapters.externalOpen.cleanUp.mockClear() // the start-up clean-up doesn't count
-    await act(() => result.current.open(WORD))
+    await act(() => result.current.openInApp(WORD))
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(120_000)
@@ -355,7 +414,7 @@ describe('opening a file in its own application', () => {
     const adapters = createAdapters()
     const { result, unmount } = await renderActions(adapters)
     adapters.externalOpen.cleanUp.mockClear()
-    await act(() => result.current.open(WORD))
+    await act(() => result.current.openInApp(WORD))
 
     unmount()
     await vi.advanceTimersByTimeAsync(200_000)
@@ -373,9 +432,9 @@ describe('opening a file in its own application', () => {
 
     let first!: Promise<void>
     act(() => {
-      first = result.current.open(WORD)
+      first = result.current.openInApp(WORD)
     })
-    await act(() => result.current.open(SPREADSHEET))
+    await act(() => result.current.openInApp(SPREADSHEET))
     expect(result.current.notice?.message).toContain('Opened "Budget"')
 
     await act(async () => {
@@ -395,7 +454,7 @@ describe('opening a file in its own application', () => {
       adapters.externalOpen.requestAccess.mockResolvedValue(false)
       const { result } = await renderActions(adapters)
 
-      await act(() => result.current.open(WORD))
+      await act(() => result.current.openInApp(WORD))
 
       expect(result.current.notice).toEqual({
         tone: 'error',
@@ -411,7 +470,7 @@ describe('opening a file in its own application', () => {
       const adapters = createAdapters()
       adapters.externalOpen.requestAccess.mockResolvedValueOnce(false)
       const { result } = await renderActions(adapters)
-      await act(() => result.current.open(WORD))
+      await act(() => result.current.openInApp(WORD))
 
       await act(async () => {
         result.current.runNoticeAction()
@@ -429,7 +488,7 @@ describe('opening a file in its own application', () => {
       )
       const { result } = await renderActions(adapters)
 
-      await act(() => result.current.open(WORD))
+      await act(() => result.current.openInApp(WORD))
 
       expect(result.current.notice?.actionLabel).toBe('Allow')
     })
@@ -441,7 +500,7 @@ describe('opening a file in its own application', () => {
         new ExternalOpenError('NEEDS_GESTURE', 'User gesture required'),
       )
       const hook = await renderActions(adapters)
-      await act(() => hook.result.current.open(WORD))
+      await act(() => hook.result.current.openInApp(WORD))
 
       return hook
     }
@@ -517,7 +576,7 @@ describe('opening a file in its own application', () => {
       )
       const { result } = await renderActions(adapters)
 
-      await act(() => result.current.open(WORD))
+      await act(() => result.current.openInApp(WORD))
 
       expect(result.current.notice).toEqual({
         tone: 'error',
@@ -534,7 +593,7 @@ describe('opening a file in its own application', () => {
         new FileContentError('PERMISSION_DENIED', 'no'),
       )
       const { result } = await renderActions(adapters)
-      await act(() => result.current.open(WORD))
+      await act(() => result.current.openInApp(WORD))
       expect(result.current.notice?.actionLabel).toBe('Try again')
 
       await act(async () => {
@@ -552,7 +611,7 @@ describe('opening a file in its own application', () => {
       )
       const { result } = await renderActions(adapters)
 
-      await act(() => result.current.open(WORD))
+      await act(() => result.current.openInApp(WORD))
 
       expect(result.current.notice).toEqual({
         tone: 'error',
@@ -569,7 +628,7 @@ describe('opening a file in its own application', () => {
       adapters.externalOpen.prepare.mockRejectedValue(new Error('disk on fire'))
       const { result } = await renderActions(adapters)
 
-      await act(() => result.current.open(WORD))
+      await act(() => result.current.openInApp(WORD))
 
       expect(result.current.notice?.tone).toBe('error')
       expect(consoleError).toHaveBeenCalled()
@@ -582,7 +641,7 @@ describe('opening a file in its own application', () => {
       )
       const { result } = await renderActions(adapters)
 
-      await act(() => result.current.open(WORD))
+      await act(() => result.current.openInApp(WORD))
 
       expect(result.current.notice?.message).not.toContain('doc-1')
     })
@@ -632,7 +691,7 @@ describe('saving a copy', () => {
   it('takes down an "Opened" notice, and opening takes down a save error', async () => {
     const adapters = createAdapters()
     const { result } = await renderActions(adapters)
-    await act(() => result.current.open(WORD))
+    await act(() => result.current.openInApp(WORD))
     expect(result.current.notice?.message).toContain('Opened')
 
     await act(() => result.current.save(PDF))
@@ -644,7 +703,7 @@ describe('saving a copy', () => {
     await act(() => result.current.save(PDF))
     expect(result.current.notice?.tone).toBe('error')
 
-    await act(() => result.current.open(WORD))
+    await act(() => result.current.openInApp(WORD))
     expect(result.current.notice?.message).toContain('Opened "Contract"')
   })
 })
@@ -671,7 +730,7 @@ describe('housekeeping', () => {
   it('leaves a dismissed notice’s file alone: dismissing hides only the message', async () => {
     const adapters = createAdapters()
     const { result } = await renderActions(adapters)
-    await act(() => result.current.open(WORD))
+    await act(() => result.current.openInApp(WORD))
 
     act(() => result.current.dismissNotice())
 

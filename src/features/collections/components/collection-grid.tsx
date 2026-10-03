@@ -29,6 +29,8 @@ interface CollectionGridProps {
   readonly onOpenResource: (resource: WebsiteResource) => void
   readonly onOpenFile?: (resource: FileResource) => void
   readonly onSaveFile?: (resource: FileResource) => void
+  /** Opens an Office file in its desktop application, from the row's menu. */
+  readonly onOpenFileInApp?: (resource: FileResource) => void
   readonly onOpenAll: (collection: Collection) => void
   readonly onEditCollection?: (collection: Collection) => void
   readonly onDeleteCollection?: (collection: Collection) => void
@@ -71,6 +73,7 @@ export function CollectionGrid({
   onOpenResource,
   onOpenFile,
   onSaveFile,
+  onOpenFileInApp,
   onOpenAll,
   onEditCollection,
   onDeleteCollection,
@@ -134,6 +137,7 @@ export function CollectionGrid({
       onOpenResource={onOpenResource}
       onOpenFile={onOpenFile}
       onSaveFile={onSaveFile}
+      onOpenFileInApp={onOpenFileInApp}
       onOpenAll={onOpenAll}
       onEdit={onEditCollection}
       onDelete={onDeleteCollection}

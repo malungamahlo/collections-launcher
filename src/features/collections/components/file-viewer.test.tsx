@@ -220,6 +220,69 @@ describe('FileViewer page', () => {
     })
   })
 
+  describe('an Office file', () => {
+    const VIEW_LOAD_TIMEOUT = { timeout: 10_000 }
+
+    it('shows a workbook’s sheets, with nothing of the app’s own around them', async () => {
+      renderViewer(
+        {
+          status: 'spreadsheet',
+          workbook: {
+            sheets: [
+              { name: 'Sales', rows: [['West']], totalRows: 1, totalColumns: 1, isTruncated: false },
+            ],
+          },
+        },
+        {
+          resource: createTestFileResource({
+            name: 'Budget',
+            mimeType: 'application/vnd.ms-excel',
+          }),
+        },
+      )
+
+      expect(await screen.findByRole('tab', { name: 'Sales' }, VIEW_LOAD_TIMEOUT)).not.toBeNull()
+      expect(screen.getByText('West')).not.toBeNull()
+      expect(screen.queryByRole('banner')).toBeNull()
+    })
+
+    it('draws a presentation’s slides', async () => {
+      renderViewer(
+        {
+          status: 'presentation',
+          presentation: {
+            width: 9_144_000,
+            height: 5_143_500,
+            totalSlides: 1,
+            isTruncated: false,
+            slides: [{ number: 1, background: { kind: 'color', color: '#ffffff' }, elements: [] }],
+          },
+        },
+        {
+          resource: createTestFileResource({
+            name: 'Deck',
+            mimeType:
+              'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          }),
+        },
+      )
+
+      expect(
+        await screen.findByRole('region', { name: 'Slide 1 of 1' }, VIEW_LOAD_TIMEOUT),
+      ).not.toBeNull()
+    })
+
+    it('says why it cannot be shown, without a pointless retry', () => {
+      renderViewer({
+        status: 'cannot-display',
+        message: '"Handbook" is too large to show here.',
+      })
+
+      expect(screen.getByRole('status').textContent).toBe('"Handbook" is too large to show here.')
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+    })
+  })
+
   describe('a file that could not be read', () => {
     it('shows the reason as an alert and offers to try again', async () => {
       const user = userEvent.setup()

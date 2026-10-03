@@ -33,3 +33,25 @@ export function describeFileSaveFailure(
       return `"${resourceName}" could not be saved. Try again.`
   }
 }
+
+/** Why a file that was read could still not be shown in the browser. */
+export type CannotDisplayReason = 'too-large' | 'unreadable'
+
+/**
+ * What to tell the user when a file was read but cannot be shown in the
+ * browser — too large to draw, or not what its type says. Its application is
+ * the way to see it, so the message says which one.
+ */
+export function describeCannotDisplay(
+  resourceName: string,
+  reason: CannotDisplayReason,
+  appName: string | undefined,
+): string {
+  const instead = appName
+    ? ` Open it in ${appName} from your collections instead.`
+    : ''
+
+  return reason === 'too-large'
+    ? `"${resourceName}" is too large to show here.${instead}`
+    : `"${resourceName}" can't be shown here — it may be damaged or in a form this view doesn't read.${instead}`
+}

@@ -47,6 +47,8 @@ interface CollectionCardProps {
   readonly onOpenFile?: (resource: FileResource) => void
   /** Saves a copy of a file resource; without it, file rows offer no save. */
   readonly onSaveFile?: (resource: FileResource) => void
+  /** Opens an Office file in its desktop application, from the row's menu. */
+  readonly onOpenFileInApp?: (resource: FileResource) => void
   readonly onOpenAll: (collection: Collection) => void
   readonly onEdit?: (collection: Collection) => void
   readonly onDelete?: (collection: Collection) => void
@@ -89,6 +91,7 @@ export function CollectionCard({
   onOpenResource,
   onOpenFile,
   onSaveFile,
+  onOpenFileInApp,
   onOpenAll,
   onEdit,
   onDelete,
@@ -306,6 +309,7 @@ export function CollectionCard({
                       resource={resource}
                       onOpen={onOpenFile}
                       onSave={onSaveFile}
+                      onOpenInApp={onOpenFileInApp}
                       onDelete={handleDelete}
                       isReorderable={isDragEnabled}
                       isHighlighted={resource.id === highlightedResourceId}
