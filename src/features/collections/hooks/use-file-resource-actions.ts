@@ -12,6 +12,7 @@ import {
 import type { TabsAdapter } from '@app/platform/browser/tabs.adapter'
 import type { FileResource } from '../model/collection.types'
 import { getFileResourceFileName } from '../model/file-name'
+import { buildFileDocumentUrl } from '../model/file-document-location'
 import { buildFileViewerUrl } from '../model/file-viewer-location'
 import { getViewerStrategy } from '../model/resource-kind-registry'
 import { describeFileReadFailure } from './file-read-messages'
@@ -108,9 +109,12 @@ function toErrorState(
  * The dashboard's file actions: open a file resource from its row, and save a
  * copy of one.
  *
- * **Opening dispatches on the registry's viewer strategy.** A PDF or Markdown
- * file is viewed on its own page (`viewer.html`), reached the way a website is:
- * by navigating the current tab, so Back returns to the dashboard. Anything else
+ * **Opening dispatches on the registry's viewer strategy**, and a file that the
+ * browser shows is reached the way a website is: by navigating the current tab,
+ * so Back returns to the dashboard. A PDF becomes the browser's own document —
+ * Chrome's PDF viewer filling the tab, as if opened from disk — at an address
+ * the extension's service worker answers (`serveFileDocument`). A Markdown file
+ * is rendered on its own page (`viewer.html`). Anything else
  * is handed to the operating system's own application through a temporary copy
  * that the user is never shown (see `ExternalOpenAdapter`) — no download bubble,
  * and the copy is deleted once the application has let go of it. The only
@@ -239,9 +243,10 @@ export function useFileResourceActions({
     }
   }
 
-  async function openInPage(resource: FileResource): Promise<void> {
+  /** Navigates this tab to `url`, saying so if it cannot. */
+  async function navigate(resource: FileResource, url: string): Promise<void> {
     try {
-      await tabs.open(buildFileViewerUrl(resource.id))
+      await tabs.open(url)
     } catch (error) {
       console.error(`Could not open file resource ${resource.id}`, error)
       setState({
@@ -253,11 +258,41 @@ export function useFileResourceActions({
     }
   }
 
+  /**
+   * Opens a PDF as the browser's own document. The extension's service worker
+   * serves it, and a worker cannot ask for a file permission — only a page can,
+   * and only from a click. So the file is checked here first, from the click:
+   * `load` asks for access if it has lapsed (and finds a missing file), but
+   * reads no bytes — a file handle's `getFile` is only a snapshot of the file.
+   */
+  async function openAsDocument(resource: FileResource): Promise<void> {
+    saveCopy.clearError()
+    setState({ status: 'idle' })
+
+    try {
+      await fileContent.load(resource.id)
+    } catch (error) {
+      setState(toErrorState(resource, error))
+
+      return
+    }
+
+    await navigate(
+      resource,
+      buildFileDocumentUrl(resource.id, getFileResourceFileName(resource)),
+    )
+  }
+
   /** Opens a file resource. Call it straight from a click. */
   function open(resource: FileResource): Promise<void> {
-    return getViewerStrategy(resource.mimeType) === 'open-externally'
-      ? openExternally(resource)
-      : openInPage(resource)
+    switch (getViewerStrategy(resource.mimeType)) {
+      case 'open-externally':
+        return openExternally(resource)
+      case 'native-pdf':
+        return openAsDocument(resource)
+      case 'render-markdown':
+        return navigate(resource, buildFileViewerUrl(resource.id))
+    }
   }
 
   /** Saves a copy of a file resource the user can keep. Call it straight from a click. */

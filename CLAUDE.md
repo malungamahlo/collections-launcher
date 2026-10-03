@@ -36,25 +36,35 @@ confused with each other.
   (the `ResourceId` type). File-resource bytes are stored through
   `file-content.adapter.ts` in IndexedDB, separate from `chrome.storage.local`;
   `file-picker.adapter.ts` wraps the File System Access picker.
-- **Opening a file resource** (`hooks/use-file-resource-actions.ts` on the dashboard,
-  `entrypoints/viewer` + `hooks/use-file-viewer.ts` + `components/file-viewer.tsx` for the
-  page): the registry's viewer strategy decides. A PDF or Markdown file opens **on a page
-  of its own in the current tab** — `viewer.html?resource=<id>`, reached the way a website
-  is (`window.location.assign`), so Back returns to the dashboard — **never in a pop-up
-  dialog** (a user rule). The PDF is an object URL in a frame, revoked when the page
-  goes; Markdown goes through `react-markdown`, which is untrusted input: raw HTML is
-  dropped, only http/https/mailto links survive, images are never loaded, only the first
-  200 KB is rendered. The renderer is `React.lazy`-loaded so it stays out of the entry
-  chunk — keep it that way. Anything else (Word, Excel, PowerPoint) opens in the OS's
-  own application (below). Every file row also has **Save a copy**, and so does a
-  file's own page — *except* a PDF's, which has **no header at all**: the tab title
-  already names it, and Chromium's built-in PDF viewer already brings its own toolbar
-  (kind, size, a download control), so a header above that would be a second,
-  mostly-empty one. `FileViewer` decides this — `showsHeader = kind.viewer !==
-  'native-pdf'` — from the resource's *kind*, never the page's loading/pdf/error
-  state, so nothing can flicker in and out. Don't add app-level chrome (a name, a
-  save/download control, anything) that only repeats what the tab or a native viewer
-  already shows.
+- **Opening a file resource** (`hooks/use-file-resource-actions.ts` on the dashboard;
+  `entrypoints/background.ts` + `services/serve-file-document.ts` for a PDF;
+  `entrypoints/viewer` + `hooks/use-file-viewer.ts` + `components/file-viewer.tsx` for
+  Markdown): the registry's viewer strategy decides. Files open **in the current tab**,
+  the way a website does, so Back returns to the dashboard. They **never open in a pop-up
+  dialog**, and the page holds **the document and nothing the app adds around it**
+  (both are user rules).
+  - **A PDF is the browser's own document**, the same as a PDF opened from disk. The tab
+    goes to `/file/<id>/<file name>` (`model/file-document-location.ts`), and the
+    extension's **service worker** answers it with the file itself. So Chromium's PDF
+    viewer *is* the tab: the file's name is in its toolbar, its download button uses that
+    name, and reload works. The address can't be `file://`, because a stored
+    `FileSystemFileHandle` never reveals the path. The response is always
+    `application/pdf` + `nosniff` + `no-store`, and only `native-pdf` resources
+    are served. A worker cannot ask for a file permission, so the dashboard first calls
+    `fileContent.load` from the click (it prompts if access has lapsed, and reads no
+    bytes) and only then navigates. Anything the worker can't serve redirects to
+    `viewer.html?resource=<id>&document=unavailable`, which shows the message or
+    **Try again** and then returns to the document address. It frames the PDF only as a
+    last resort, when the page can read the file but the worker could not.
+  - **Markdown** renders on `viewer.html?resource=<id>` with **no header, kind/size,
+    or Save a copy**: the tab title names it, and its dashboard row has Save a copy.
+    `react-markdown` is fed untrusted input: raw HTML is dropped, only
+    http/https/mailto links survive, images are never loaded, and only the first 200 KB
+    is rendered. The renderer is `React.lazy`-loaded so it stays out of the entry
+    chunk; keep it that way.
+  - Anything else (Word, Excel, PowerPoint) opens in the OS's own application (below).
+    Every file row has **Save a copy**. Don't add app-level chrome (a name, a
+    save/download control, anything) around a file's document.
 - **Copies of a user's files.** A locally added file is stored as a reference (a
   `FileSystemFileHandle`), never a stored duplicate; sync is planned and piled-up copies
   are unwanted. The one sanctioned copy is the **temporary one made to open an Office
@@ -72,7 +82,8 @@ confused with each other.
   "ready — Open" fallback. (See `documentation/Logic Doc/v3/11-…`.)
 - `src/shared/` — generic UI primitives (`components/ui`), hooks, `lib`, styles.
   Imports nothing from `features/`, `engine/`, or `platform/`.
-- `entrypoints/newtab`, `entrypoints/popup` — composition roots only.
+- `entrypoints/newtab`, `entrypoints/popup`, `entrypoints/viewer`, `entrypoints/background`
+  (the service worker) — composition roots only.
 
 Conventions: kebab-case filenames; `@app/` alias (= `src`) for every cross-module
 import, relative imports only within a module; tests live beside the code as
@@ -112,8 +123,9 @@ real application.
   `npm run typecheck`, `npm run build:extension` (builds this repo); set
   `$env:HEADED = 1` to watch. `npx playwright install chromium` fetches the browser.
 - **Playwright uses its bundled Chromium**, not Chrome — recent branded Chrome no longer
-  honours `--load-extension`. The extension has no service worker, so its ID is read
-  from where `chrome://newtab/` redirects.
+  honours `--load-extension`. The extension's ID is read from where
+  `chrome://newtab/` redirects (its service worker only serves PDFs, so it may not be
+  running at launch).
 - **Playwright cannot operate the native file dialog** (`showOpenFilePicker`).
   `helpers/file-picker.ts` replaces it with a real Origin-Private-File-System handle for
   the test document. That exercises real IndexedDB storage of a handle, but **not the

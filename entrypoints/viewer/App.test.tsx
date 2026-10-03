@@ -16,7 +16,6 @@ import {
   FileContentError,
   type FileContentAdapter,
 } from '@app/platform/browser/file-content.adapter'
-import type { FileDownloadAdapter } from '@app/platform/browser/file-download.adapter'
 import App from './App'
 
 // happy-dom cannot load a `blob:` frame source but treats `about:blank` as loaded.
@@ -69,13 +68,11 @@ function createRepository(state: CollectionsState): CollectionsRepository {
 
 function createAdapters(load: () => Promise<Blob> = () => Promise.resolve(new Blob(['%PDF-1.7']))) {
   const fileContent = { load: vi.fn(load) }
-  const download = vi.fn<FileDownloadAdapter['download']>()
 
   return {
     fileContent: fileContent as unknown as FileContentAdapter,
     loadSpy: fileContent.load,
-    fileDownload: { download } satisfies FileDownloadAdapter,
-    download,
+    replaceLocation: vi.fn<(url: string) => void>(),
   }
 }
 
@@ -91,7 +88,7 @@ function renderViewer(options: {
     <App
       repository={options.repository ?? createRepository(options.state ?? STATE)}
       fileContent={adapters.fileContent}
-      fileDownload={adapters.fileDownload}
+      replaceLocation={adapters.replaceLocation}
       search={options.search}
     />,
   )
@@ -99,26 +96,39 @@ function renderViewer(options: {
   return adapters
 }
 
-/** The query string the dashboard navigates here with. */
-function searchFor(resourceId: string): string {
-  return new URL(buildFileViewerUrl(resourceId), 'chrome-extension://x/').search
+/** The query string the dashboard (or the service worker) navigates here with. */
+function searchFor(resourceId: string, documentUnavailable = false): string {
+  return new URL(
+    buildFileViewerUrl(resourceId, { documentUnavailable }),
+    'chrome-extension://x/',
+  ).search
 }
 
 describe('viewer page', () => {
-  it('shows a PDF resource on a page of its own, titling the tab after it', async () => {
+  it('sends a readable PDF on to be the browser’s own document, frame-free', async () => {
     const adapters = renderViewer({ search: searchFor('pdf-1') })
+
+    await waitFor(() =>
+      expect(adapters.replaceLocation).toHaveBeenCalledExactlyOnceWith(
+        '/file/pdf-1/Handbook.pdf',
+      ),
+    )
+    expect(adapters.loadSpy).toHaveBeenCalledWith('pdf-1')
+    expect(screen.queryByTitle('Handbook')).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('Opening file…')
+  })
+
+  it('frames a PDF its document address could not serve, rather than looping back there', async () => {
+    const adapters = renderViewer({ search: searchFor('pdf-1', true) })
 
     await waitFor(() =>
       expect((screen.getByTitle('Handbook') as HTMLIFrameElement).getAttribute('src')).toBe(
         FRAME_URL,
       ),
     )
-    expect(adapters.loadSpy).toHaveBeenCalledWith('pdf-1')
-    // The tab is titled with the file, and there is no header repeating that
-    // (or anything else) above the browser's own PDF viewer — and nothing is a pop-up.
+    expect(adapters.replaceLocation).not.toHaveBeenCalled()
     expect(document.title).toBe('Handbook')
     expect(screen.queryByRole('banner')).toBeNull()
-    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -140,65 +150,36 @@ describe('viewer page', () => {
     expect(document.title).toBe('Notes')
   })
 
-  it('offers Try again after a refusal, and shows the file once it is allowed', async () => {
+  it('offers Try again after a refusal, and once allowed opens the PDF as a document', async () => {
     const user = userEvent.setup()
     const adapters = createAdapters()
     adapters.loadSpy.mockRejectedValueOnce(
       new FileContentError('PERMISSION_DENIED', 'no'),
     )
-    renderViewer({ search: searchFor('pdf-1'), adapters })
+    // How the page is reached when a lapsed permission stopped the service worker.
+    renderViewer({ search: searchFor('pdf-1', true), adapters })
 
     await user.click(await screen.findByRole('button', { name: 'Try again' }))
 
-    await waitFor(() => expect(screen.getByTitle('Handbook')).not.toBeNull())
+    await waitFor(() =>
+      expect(adapters.replaceLocation).toHaveBeenCalledExactlyOnceWith(
+        '/file/pdf-1/Handbook.pdf',
+      ),
+    )
     expect(adapters.loadSpy).toHaveBeenCalledTimes(2)
   })
 
-  // Save a copy is left out for a PDF (the browser's own viewer already has a
-  // download control) — see file-viewer.test.tsx — so this exercises a
-  // Markdown resource, which still offers it.
-  it('saves a copy from its header, named after the file with its extension', async () => {
-    const user = userEvent.setup()
-    const content = new Blob(['# Notes'], { type: 'text/markdown' })
-    const adapters = createAdapters(() => Promise.resolve(content))
-    renderViewer({ search: searchFor('md-1'), adapters })
+  it('shows a Markdown file with nothing of the app’s own around it', async () => {
+    renderViewer({
+      search: searchFor('md-1'),
+      adapters: createAdapters(() => Promise.resolve(new Blob(['# Notes']))),
+    })
 
-    await user.click(await screen.findByRole('button', { name: 'Save a copy' }))
-
-    await waitFor(() =>
-      expect(adapters.download).toHaveBeenCalledExactlyOnceWith(
-        'Notes.md',
-        content,
-      ),
-    )
-  })
-
-  it('has no header, or Save a copy button, for a PDF — the browser’s own viewer already has both', async () => {
-    renderViewer({ search: searchFor('pdf-1') })
-
-    await screen.findByTitle('Handbook')
+    await screen.findByRole('heading', { name: 'Notes' }, { timeout: 10_000 })
 
     expect(screen.queryByRole('banner')).toBeNull()
+    expect(screen.queryByText(/Markdown document/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Save a copy' })).toBeNull()
-  })
-
-  it('says why a copy could not be saved', async () => {
-    const user = userEvent.setup()
-    const adapters = createAdapters()
-    renderViewer({ search: searchFor('md-1'), adapters })
-    // Lets the page's own first load claim its call before queuing the next
-    // one to fail — the save button's click triggers a second, separate load.
-    await waitFor(() => expect(adapters.loadSpy).toHaveBeenCalledTimes(1))
-    adapters.loadSpy.mockRejectedValueOnce(
-      new FileContentError('NOT_FOUND', 'gone'),
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Save a copy' }))
-
-    expect((await screen.findByRole('alert')).textContent).toContain(
-      'nothing to save',
-    )
-    expect(adapters.download).not.toHaveBeenCalled()
   })
 
   describe('when there is nothing to show', () => {
@@ -241,7 +222,7 @@ describe('viewer page', () => {
       expect(adapters.loadSpy).not.toHaveBeenCalled()
 
       release(STATE)
-      expect(await screen.findByTitle('Handbook')).not.toBeNull()
+      await waitFor(() => expect(adapters.loadSpy).toHaveBeenCalledWith('pdf-1'))
     })
 
     it('reports collections that could not be loaded', async () => {

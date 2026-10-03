@@ -12,6 +12,7 @@ import {
   type ExternalOpenAdapter,
   type PreparedExternalFile,
 } from '@app/platform/browser/external-open.adapter'
+import { buildFileDocumentUrl } from '../model/file-document-location'
 import { buildFileViewerUrl } from '../model/file-viewer-location'
 import { createTestFileResource } from '../test/collection.fixtures'
 import { useFileResourceActions } from './use-file-resource-actions'
@@ -117,18 +118,77 @@ async function renderActions(adapters: Adapters) {
   return hook
 }
 
-describe('opening a PDF or Markdown file', () => {
-  it.each([
-    ['a PDF', PDF],
-    ['a Markdown file', MARKDOWN],
-  ])('shows %s on its own page, by navigating the current tab', async (_label, resource) => {
+describe('opening a PDF', () => {
+  it('opens it as the browser’s own document, at an address ending in its file name', async () => {
     const adapters = createAdapters()
     const { result } = await renderActions(adapters)
 
-    await act(() => result.current.open(resource))
+    await act(() => result.current.open(PDF))
 
     expect(adapters.tabs.open).toHaveBeenCalledExactlyOnceWith(
-      buildFileViewerUrl(resource.id),
+      buildFileDocumentUrl(PDF.id, 'Handbook.pdf'),
+    )
+    expect(result.current.notice).toBeUndefined()
+  })
+
+  it('checks the file can be read first, from the click, so a lapsed permission can be granted', async () => {
+    const adapters = createAdapters()
+    const { result } = await renderActions(adapters)
+
+    await act(() => result.current.open(PDF))
+
+    expect(adapters.fileContentSpies.load).toHaveBeenCalledExactlyOnceWith(PDF.id)
+    expect(adapters.fileContentSpies.load.mock.invocationCallOrder[0]).toBeLessThan(
+      adapters.tabs.open.mock.invocationCallOrder[0] ?? 0,
+    )
+    expect(adapters.externalOpen.requestAccess).not.toHaveBeenCalled()
+    expect(adapters.externalOpen.prepare).not.toHaveBeenCalled()
+  })
+
+  it('stays on the dashboard and says why when access is refused, with a way to try again', async () => {
+    const adapters = createAdapters()
+    adapters.fileContentSpies.load.mockRejectedValueOnce(
+      new FileContentError('PERMISSION_DENIED', 'no'),
+    )
+    const { result } = await renderActions(adapters)
+
+    await act(() => result.current.open(PDF))
+
+    expect(adapters.tabs.open).not.toHaveBeenCalled()
+    expect(result.current.notice?.tone).toBe('error')
+    expect(result.current.notice?.actionLabel).toBe('Try again')
+
+    await act(async () => {
+      result.current.runNoticeAction()
+      await Promise.resolve()
+    })
+
+    expect(adapters.tabs.open).toHaveBeenCalledOnce()
+  })
+
+  it('says a missing file is missing, and offers no pointless retry', async () => {
+    const adapters = createAdapters()
+    adapters.fileContentSpies.load.mockRejectedValue(
+      new FileContentError('NOT_FOUND', 'gone'),
+    )
+    const { result } = await renderActions(adapters)
+
+    await act(() => result.current.open(PDF))
+
+    expect(adapters.tabs.open).not.toHaveBeenCalled()
+    expect(result.current.notice?.actionLabel).toBeUndefined()
+  })
+})
+
+describe('opening a Markdown file', () => {
+  it('shows it on its own page, by navigating the current tab', async () => {
+    const adapters = createAdapters()
+    const { result } = await renderActions(adapters)
+
+    await act(() => result.current.open(MARKDOWN))
+
+    expect(adapters.tabs.open).toHaveBeenCalledExactlyOnceWith(
+      buildFileViewerUrl(MARKDOWN.id),
     )
   })
 
@@ -136,25 +196,30 @@ describe('opening a PDF or Markdown file', () => {
     const adapters = createAdapters()
     const { result } = await renderActions(adapters)
 
-    await act(() => result.current.open(PDF))
+    await act(() => result.current.open(MARKDOWN))
 
     expect(adapters.fileContentSpies.load).not.toHaveBeenCalled()
     expect(adapters.externalOpen.requestAccess).not.toHaveBeenCalled()
     expect(adapters.externalOpen.prepare).not.toHaveBeenCalled()
     expect(result.current.notice).toBeUndefined()
   })
+})
 
-  it('says so when the page cannot be opened', async () => {
+describe('when the tab cannot be navigated', () => {
+  it.each([
+    ['a PDF', PDF],
+    ['a Markdown file', MARKDOWN],
+  ])('says so for %s', async (_label, resource) => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const adapters = createAdapters()
     adapters.tabs.open.mockRejectedValue(new Error('nope'))
     const { result } = await renderActions(adapters)
 
-    await act(() => result.current.open(PDF))
+    await act(() => result.current.open(resource))
 
     expect(result.current.notice).toEqual({
       tone: 'error',
-      message: '"Handbook" could not be opened. Try again.',
+      message: `"${resource.name}" could not be opened. Try again.`,
       actionLabel: 'Try again',
     })
   })

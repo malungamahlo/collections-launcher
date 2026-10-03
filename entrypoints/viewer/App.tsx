@@ -2,20 +2,18 @@ import type { ReactNode } from 'react'
 import { FileViewer } from '@app/features/collections/components/file-viewer'
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
 import { useFileViewer } from '@app/features/collections/hooks/use-file-viewer'
-import { useSaveFileCopy } from '@app/features/collections/hooks/use-save-file-copy'
 import { findFileResourceById } from '@app/features/collections/model/collection.queries'
 import type { FileResource } from '@app/features/collections/model/collection.types'
-import { readFileViewerResourceId } from '@app/features/collections/model/file-viewer-location'
+import {
+  readFileDocumentUnavailable,
+  readFileViewerResourceId,
+} from '@app/features/collections/model/file-viewer-location'
 import type { CollectionsRepository } from '@app/features/collections/storage/collections.repository'
 import { ChromeLocalCollectionsRepository } from '@app/features/collections/storage/chrome-local-collections.repository'
 import {
   BrowserFileContentAdapter,
   type FileContentAdapter,
 } from '@app/platform/browser/file-content.adapter'
-import {
-  BrowserFileDownloadAdapter,
-  type FileDownloadAdapter,
-} from '@app/platform/browser/file-download.adapter'
 import { IndexedDbFileContentStore } from '@app/platform/browser/indexeddb-file-content.store'
 import { useDocumentTitle } from '@app/shared/hooks/use-document-title'
 
@@ -24,12 +22,17 @@ const collectionsRepository = new ChromeLocalCollectionsRepository()
 const fileContentAdapter = new BrowserFileContentAdapter(
   new IndexedDbFileContentStore(),
 )
-const fileDownloadAdapter = new BrowserFileDownloadAdapter()
+
+/** Leaves this page for another address without a history entry, so Back skips it. */
+function replaceWindowLocation(url: string): void {
+  window.location.replace(url)
+}
 
 interface AppProps {
   readonly repository?: CollectionsRepository
   readonly fileContent?: FileContentAdapter
-  readonly fileDownload?: FileDownloadAdapter
+  /** How the page leaves for a PDF's document address; defaults to `location.replace`. */
+  readonly replaceLocation?: (url: string) => void
   /** The page's query string; defaults to this page's own. */
   readonly search?: string
 }
@@ -54,17 +57,23 @@ function PageMessage({
 interface FileViewerScreenProps {
   readonly resource: FileResource
   readonly fileContent: FileContentAdapter
-  readonly fileDownload: FileDownloadAdapter
+  readonly replaceLocation: (url: string) => void
+  readonly documentUnavailable: boolean
 }
 
-/** Connects the viewer to reading the file, saving a copy of it, and naming the tab. */
+/** Connects the viewer to reading the file and naming the tab. */
 function FileViewerScreen({
   resource,
   fileContent,
-  fileDownload,
+  replaceLocation,
+  documentUnavailable,
 }: FileViewerScreenProps) {
-  const viewer = useFileViewer({ fileContent, resource })
-  const saveCopy = useSaveFileCopy({ fileContent, fileDownload })
+  const viewer = useFileViewer({
+    fileContent,
+    resource,
+    replaceLocation,
+    documentUnavailable,
+  })
 
   useDocumentTitle(resource.name)
 
@@ -72,23 +81,22 @@ function FileViewerScreen({
     <FileViewer
       resource={resource}
       state={viewer.state}
-      saveError={saveCopy.error}
       onRetry={viewer.retry}
-      onSave={() => void saveCopy.save(resource)}
     />
   )
 }
 
 /**
  * The page a file resource is viewed on. The dashboard navigates here for a
- * PDF or a Markdown file, passing the resource's id in the address; this looks
- * the resource up and shows it. Composition only — reading, rendering and
- * saving live in the feature.
+ * Markdown file, passing the resource's id in the address; this looks the
+ * resource up and shows it. A PDF arrives here only when its document address
+ * could not serve it, and leaves again as soon as it can be read. Composition
+ * only — reading and rendering live in the feature.
  */
 function App({
   repository = collectionsRepository,
   fileContent = fileContentAdapter,
-  fileDownload = fileDownloadAdapter,
+  replaceLocation = replaceWindowLocation,
   search = window.location.search,
 }: AppProps) {
   const resourceId = readFileViewerResourceId(search)
@@ -128,7 +136,8 @@ function App({
       key={resource.id}
       resource={resource}
       fileContent={fileContent}
-      fileDownload={fileDownload}
+      replaceLocation={replaceLocation}
+      documentUnavailable={readFileDocumentUnavailable(search)}
     />
   )
 }

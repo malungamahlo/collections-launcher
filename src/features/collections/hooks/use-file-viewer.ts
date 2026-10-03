@@ -5,6 +5,8 @@ import {
   type FileContentErrorCode,
 } from '@app/platform/browser/file-content.adapter'
 import type { FileResource } from '../model/collection.types'
+import { buildFileDocumentUrl } from '../model/file-document-location'
+import { getFileResourceFileName } from '../model/file-name'
 import { MARKDOWN_PREVIEW_MAX_BYTES } from '../model/markdown-preview'
 import { getViewerStrategy } from '../model/resource-kind-registry'
 import { describeFileReadFailure } from './file-read-messages'
@@ -17,7 +19,16 @@ import { describeFileReadFailure } from './file-read-messages'
 export type FileViewerState =
   /** The file is being read. */
   | { readonly status: 'loading' }
-  /** A PDF, ready to be shown by the browser's own viewer. */
+  /**
+   * A PDF that can be read, on its way to its document address, where the
+   * browser shows it as a document of its own. The page is about to be replaced.
+   */
+  | { readonly status: 'opening-document' }
+  /**
+   * A PDF shown in a frame on this page — only when its document address
+   * could not serve it although this page can read it. A last resort: the
+   * browser's own viewer still renders it, but under a made-up name.
+   */
   | { readonly status: 'pdf'; readonly blob: Blob }
   /** A Markdown file's text, ready to be rendered. */
   | {
@@ -42,17 +53,22 @@ export type FileViewerState =
 interface UseFileViewerOptions {
   readonly fileContent: FileContentAdapter
   readonly resource: FileResource
+  /**
+   * Replaces this page with another address, leaving no history entry behind,
+   * so Back from the document returns to wherever the user came from. Pass a
+   * stable function: a new one reads the file again.
+   */
+  readonly replaceLocation: (url: string) => void
+  /**
+   * True when this page was reached because the PDF's document address could
+   * not serve it. The page then does not send the tab straight back there on
+   * its first read (which could loop) — only after the user presses Try again.
+   */
+  readonly documentUnavailable?: boolean
 }
 
-/** Turns loaded bytes into the state for the resource's viewer strategy. */
-async function readForViewer(
-  strategy: 'native-pdf' | 'render-markdown',
-  blob: Blob,
-): Promise<FileViewerState> {
-  if (strategy === 'native-pdf') {
-    return { status: 'pdf', blob }
-  }
-
+/** Turns loaded bytes into a Markdown state. */
+async function readMarkdown(blob: Blob): Promise<FileViewerState> {
   const isTruncated = blob.size > MARKDOWN_PREVIEW_MAX_BYTES
   const text = await (isTruncated
     ? blob.slice(0, MARKDOWN_PREVIEW_MAX_BYTES)
@@ -68,17 +84,28 @@ async function readForViewer(
  * so no format is named here — a PDF and a Markdown file differ only in what
  * the viewer strategy says.
  *
+ * A Markdown file is rendered here. A PDF is not: once it is known to be
+ * readable — which, after a browser restart, may first need the user to grant
+ * access again with **Try again** — the page is replaced by its document
+ * address, where the browser shows it as a document of its own.
+ *
  * The file is read where it lives; nothing is ever written. It is read once
  * per resource, and again on `retry()`. A read that finishes after the page
  * has moved on is discarded.
  */
-export function useFileViewer({ fileContent, resource }: UseFileViewerOptions): {
+export function useFileViewer({
+  fileContent,
+  resource,
+  replaceLocation,
+  documentUnavailable = false,
+}: UseFileViewerOptions): {
   readonly state: FileViewerState
   readonly retry: () => void
 } {
   // Primitives, so a change elsewhere in the collections (which hands back a
   // new resource object with the same content) does not read the file again.
   const { id, name, mimeType } = resource
+  const documentUrl = buildFileDocumentUrl(id, getFileResourceFileName(resource))
   const strategy = getViewerStrategy(mimeType)
   const [attempt, setAttempt] = useState(0)
   const [state, setState] = useState<FileViewerState>(
@@ -94,10 +121,26 @@ export function useFileViewer({ fileContent, resource }: UseFileViewerOptions): 
 
     void fileContent
       .load(id)
-      .then(blob => readForViewer(strategy, blob))
-      .then(next => {
-        if (isCurrent) {
-          setState(next)
+      .then(blob => {
+        if (!isCurrent) {
+          return
+        }
+
+        if (strategy === 'render-markdown') {
+          return readMarkdown(blob).then(next => {
+            if (isCurrent) {
+              setState(next)
+            }
+          })
+        }
+
+        // A PDF goes to its document address — unless that address just sent
+        // the tab here and the user has not asked to try again.
+        if (documentUnavailable && attempt === 0) {
+          setState({ status: 'pdf', blob })
+        } else {
+          setState({ status: 'opening-document' })
+          replaceLocation(documentUrl)
         }
       })
       .catch((error: unknown) => {
@@ -122,7 +165,16 @@ export function useFileViewer({ fileContent, resource }: UseFileViewerOptions): 
     return () => {
       isCurrent = false
     }
-  }, [fileContent, id, name, strategy, attempt])
+  }, [
+    fileContent,
+    id,
+    name,
+    strategy,
+    attempt,
+    documentUrl,
+    documentUnavailable,
+    replaceLocation,
+  ])
 
   /** Reads the file again — from a click, so a lapsed permission can be re-granted. */
   function retry(): void {

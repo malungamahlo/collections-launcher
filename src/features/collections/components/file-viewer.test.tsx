@@ -44,18 +44,14 @@ function renderViewer(
   state: FileViewerState,
   handlers: {
     resource?: FileResource
-    saveError?: string
     onRetry?: () => void
-    onSave?: () => void
   } = {},
 ) {
   return render(
     <FileViewer
       resource={handlers.resource ?? PDF}
       state={state}
-      saveError={handlers.saveError}
       onRetry={handlers.onRetry ?? (() => undefined)}
-      onSave={handlers.onSave ?? (() => undefined)}
     />,
   )
 }
@@ -74,86 +70,57 @@ describe('FileViewer page', () => {
     expect(screen.getByRole('status').textContent).toBe('Opening file…')
   })
 
-  describe('the header', () => {
-    const markdownResource = createTestFileResource({
+  it('says the file is being opened while a PDF is on its way to its own address', () => {
+    renderViewer({ status: 'opening-document' })
+
+    expect(screen.getByRole('status').textContent).toBe('Opening file…')
+  })
+
+  // The page holds the document and nothing of the app's own: the tab title
+  // already names the file, and its dashboard row already offers Save a copy.
+  describe('no app chrome around the document', () => {
+    const notes = createTestFileResource({
       name: 'Notes',
       mimeType: 'text/markdown',
       sizeBytes: 2_048,
     })
-
-    it('describes the file’s kind and size, without repeating its name', () => {
-      // The browser's own tab title already carries the name (`useDocumentTitle`,
-      // set by the caller) — showing it again in the header would be the same
-      // information twice.
-      renderViewer({ status: 'loading' }, { resource: markdownResource })
-
-      expect(screen.getByText('Markdown document · 2 KB')).not.toBeNull()
-      expect(screen.queryByText('Notes')).toBeNull()
-      expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    const contract = createTestFileResource({
+      name: 'Contract',
+      mimeType: 'application/msword',
     })
 
-    it('offers Save a copy, and asks for a copy when pressed', async () => {
-      const user = userEvent.setup()
-      const onSave = vi.fn()
-      renderViewer({ status: 'loading' }, { resource: markdownResource, onSave })
-
-      await user.click(screen.getByRole('button', { name: 'Save a copy' }))
-
-      expect(onSave).toHaveBeenCalledTimes(1)
-    })
-
-    it('shows why a copy could not be saved, under the header', () => {
-      renderViewer(
-        { status: 'loading' },
-        {
-          resource: markdownResource,
-          saveError: '"Notes" could not be saved. Try again.',
-        },
-      )
-
-      expect(screen.getByRole('alert').textContent).toBe(
-        '"Notes" could not be saved. Try again.',
-      )
-    })
-
-    it('shows no alert when there is nothing to report', () => {
-      renderViewer({ status: 'loading' }, { resource: markdownResource })
-
-      expect(screen.queryByRole('alert')).toBeNull()
-    })
-
-    // For a PDF there is no header at all, in any state: once shown, a PDF is
-    // rendered by the browser's own built-in viewer, which brings its own
-    // toolbar — kind, size, a download control, all of it — so a header above
-    // that would just be a second, mostly-empty one. This is decided by the
-    // resource's *kind*, not by which state the page happens to be in, so
-    // nothing appears and then disappears as the page goes from loading to
-    // showing content.
-    const pdfStates: ReadonlyArray<[string, FileViewerState]> = [
-      ['while loading', { status: 'loading' }],
-      ['once shown', { status: 'pdf', blob: new Blob(['%PDF']) }],
+    const cases: ReadonlyArray<[string, FileResource, FileViewerState]> = [
+      ['a Markdown file, loading', notes, { status: 'loading' }],
       [
-        'on an error',
-        {
-          status: 'error',
-          code: 'UNAVAILABLE',
-          message: '"Handbook" could not be opened. Try again.',
-        },
+        'a Markdown file, shown',
+        notes,
+        { status: 'markdown', text: '# Notes', isTruncated: false },
       ],
+      ['a PDF, loading', PDF, { status: 'loading' }],
+      ['a PDF, opening', PDF, { status: 'opening-document' }],
+      ['a PDF, shown here', PDF, { status: 'pdf', blob: new Blob(['%PDF']) }],
+      [
+        'a PDF, on an error',
+        PDF,
+        { status: 'error', code: 'UNAVAILABLE', message: 'Could not.' },
+      ],
+      ['a Word document', contract, { status: 'unsupported' }],
     ]
 
-    it.each(pdfStates)('does not exist at all for a PDF resource, %s', (_label, state) => {
-      renderViewer(state, { saveError: 'should never show' })
+    it.each(cases)('has no header, kind, size, or Save a copy for %s', (_label, resource, state) => {
+      renderViewer(state, { resource })
 
       // <header> carries the implicit "banner" landmark role.
       expect(screen.queryByRole('banner')).toBeNull()
-      expect(screen.queryByText(/PDF document/)).toBeNull()
+      expect(screen.queryByText(/document ·/)).toBeNull()
+      expect(screen.queryByText(/2 KB/)).toBeNull()
       expect(screen.queryByRole('button', { name: 'Save a copy' })).toBeNull()
-      expect(screen.queryByText('should never show')).toBeNull()
     })
   })
 
-  describe('a PDF', () => {
+  // Only when its document address could not serve it: normally a PDF leaves
+  // this page for that address and is never framed.
+  describe('a PDF shown here as a last resort', () => {
     it('shows the bytes in a frame through an object URL, typed as a PDF', () => {
       // The file claims to be something else; the frame must still get a PDF.
       const blob = new Blob(['%PDF-1.7'], { type: 'text/html' })
@@ -188,12 +155,7 @@ describe('FileViewer page', () => {
       const { rerender } = renderViewer(state)
 
       rerender(
-        <FileViewer
-          resource={PDF}
-          state={state}
-          onRetry={() => undefined}
-          onSave={() => undefined}
-        />,
+        <FileViewer resource={PDF} state={state} onRetry={() => undefined} />,
       )
 
       expect(createObjectURL).toHaveBeenCalledTimes(1)
@@ -255,9 +217,6 @@ describe('FileViewer page', () => {
       )
       expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
       expect(createObjectURL).not.toHaveBeenCalled()
-      // Leaving out Save a copy is specific to a PDF — this is Word, so it's
-      // still offered (reachable only by a hand-typed address, but still correct).
-      expect(screen.getByRole('button', { name: 'Save a copy' })).not.toBeNull()
     })
   })
 

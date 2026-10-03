@@ -57,14 +57,26 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
+const replaceLocation = vi.fn<(url: string) => void>()
+
+afterEach(() => {
+  replaceLocation.mockReset()
+})
+
 /** Renders the hook and waits for its first read to settle. */
 async function renderViewer(
   fileContent: FileContentAdapter,
   resource: FileResource,
+  { documentUnavailable = false } = {},
 ) {
   const hook = renderHook(
     (props: { resource: FileResource }) =>
-      useFileViewer({ fileContent, resource: props.resource }),
+      useFileViewer({
+        fileContent,
+        resource: props.resource,
+        replaceLocation,
+        documentUnavailable,
+      }),
     { initialProps: { resource } },
   )
 
@@ -76,20 +88,74 @@ async function renderViewer(
 }
 
 describe('useFileViewer', () => {
-  it('starts out loading, then shows a PDF through its bytes', async () => {
+  it('starts out loading, then replaces the page with a readable PDF’s document address', async () => {
     const pending = deferred<Blob>()
     const { fileContent, spies } = createFileContent(() => pending.promise)
     const { result } = renderHook(() =>
-      useFileViewer({ fileContent, resource: PDF }),
+      useFileViewer({ fileContent, resource: PDF, replaceLocation }),
     )
 
     expect(result.current.state).toEqual({ status: 'loading' })
     expect(spies.load).toHaveBeenCalledWith('pdf-1')
+    expect(replaceLocation).not.toHaveBeenCalled()
 
     const blob = new Blob(['%PDF-1.7'], { type: 'application/pdf' })
     await act(async () => pending.resolve(blob))
 
-    expect(result.current.state).toEqual({ status: 'pdf', blob })
+    expect(result.current.state).toEqual({ status: 'opening-document' })
+    expect(replaceLocation).toHaveBeenCalledExactlyOnceWith('/file/pdf-1/Handbook.pdf')
+  })
+
+  it('does not replace the page with a PDF that cannot be read', async () => {
+    const { fileContent } = createFileContent(() =>
+      Promise.reject(new FileContentError('PERMISSION_DENIED', 'no')),
+    )
+
+    await renderViewer(fileContent, PDF)
+
+    expect(replaceLocation).not.toHaveBeenCalled()
+  })
+
+  it('never sends a Markdown file to a document address', async () => {
+    const { fileContent } = createFileContent(() => Promise.resolve(new Blob(['# x'])))
+
+    await renderViewer(fileContent, MARKDOWN)
+
+    expect(replaceLocation).not.toHaveBeenCalled()
+  })
+
+  describe('when the document address could not serve the PDF', () => {
+    it('shows it on this page instead of sending the tab straight back', async () => {
+      const blob = new Blob(['%PDF'])
+      const { fileContent } = createFileContent(() => Promise.resolve(blob))
+
+      const { result } = await renderViewer(fileContent, PDF, {
+        documentUnavailable: true,
+      })
+
+      expect(result.current.state).toEqual({ status: 'pdf', blob })
+      expect(replaceLocation).not.toHaveBeenCalled()
+    })
+
+    it('goes to the document address once the user tries again', async () => {
+      const { fileContent, spies } = createFileContent(() =>
+        Promise.resolve(new Blob(['%PDF'])),
+      )
+      spies.load.mockRejectedValueOnce(
+        new FileContentError('PERMISSION_DENIED', 'no'),
+      )
+      const { result } = await renderViewer(fileContent, PDF, {
+        documentUnavailable: true,
+      })
+      expect(result.current.state.status).toBe('error')
+
+      act(() => result.current.retry())
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(replaceLocation).toHaveBeenCalledExactlyOnceWith('/file/pdf-1/Handbook.pdf')
+    })
   })
 
   it('reads a Markdown file as text', async () => {
@@ -258,7 +324,8 @@ describe('useFileViewer', () => {
       })
 
       expect(spies.load).toHaveBeenCalledTimes(2)
-      expect(result.current.state).toEqual({ status: 'pdf', blob })
+      expect(result.current.state).toEqual({ status: 'opening-document' })
+      expect(replaceLocation).toHaveBeenCalledOnce()
     })
 
     it('shows the newest read when an earlier one finishes late', async () => {
@@ -267,15 +334,18 @@ describe('useFileViewer', () => {
       const { fileContent, spies } = createFileContent(() => first.promise)
       spies.load.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
       const { result } = renderHook(() =>
-        useFileViewer({ fileContent, resource: PDF }),
+        useFileViewer({ fileContent, resource: MARKDOWN, replaceLocation }),
       )
 
       act(() => result.current.retry())
-      const newer = new Blob(['newer'])
-      await act(async () => second.resolve(newer))
+      await act(async () => second.resolve(new Blob(['newer'])))
       await act(async () => first.resolve(new Blob(['older'])))
 
-      expect(result.current.state).toEqual({ status: 'pdf', blob: newer })
+      expect(result.current.state).toEqual({
+        status: 'markdown',
+        text: 'newer',
+        isTruncated: false,
+      })
     })
   })
 
