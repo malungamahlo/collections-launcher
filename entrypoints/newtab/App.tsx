@@ -106,7 +106,11 @@ function App() {
     state: storedCollections.state,
     save: storedCollections.save,
   })
-  const exportCollection = useExportCollection(fileDownloadAdapter)
+  // An export carries each file resource's content, read from where the file lives.
+  const exportCollection = useExportCollection({
+    fileDownload: fileDownloadAdapter,
+    fileContent: fileContentAdapter,
+  })
   const importCollection = useImportCollection({
     state: storedCollections.state,
     save: storedCollections.save,
@@ -315,7 +319,7 @@ function App() {
               onExportCollection={
                 isDevelopmentPreview
                   ? undefined
-                  : exportCollection.exportCollection
+                  : collection => void exportCollection.exportCollection(collection)
               }
               onAddResource={
                 isDevelopmentPreview ? undefined : addResource.open
@@ -440,12 +444,22 @@ function App() {
         />
       )}
 
-      {fileActions.notice && (
+      {/* One message at a time: while an export has something to say, it
+          takes the place of a file action's notice. */}
+      {exportCollection.notice ? (
         <FileActionToast
-          notice={fileActions.notice}
-          onAction={fileActions.runNoticeAction}
-          onDismiss={fileActions.dismissNotice}
+          notice={exportCollection.notice}
+          onAction={() => undefined}
+          onDismiss={exportCollection.dismissNotice}
         />
+      ) : (
+        fileActions.notice && (
+          <FileActionToast
+            notice={fileActions.notice}
+            onAction={fileActions.runNoticeAction}
+            onDismiss={fileActions.dismissNotice}
+          />
+        )
       )}
 
       {resourceManagement.resourceToDelete && (

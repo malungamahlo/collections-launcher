@@ -8,56 +8,22 @@ import {
 } from '@app/features/collections/model/resource.guards'
 import {
   BUNDLE_FORMAT,
-  BUNDLE_SCHEMA_VERSION,
   PACKAGE_SCHEMA_VERSION,
-  type BundleCollection,
-  type BundleResource,
-  type CollectionBundle,
   type CollectionPackageManifest,
   type PackageResourceEntry,
 } from './bundle.types'
 import { buildAttachmentPath } from './package-layout'
 
 /**
- * Converts a stored collection into its portable bundle shape, stripping
- * only local identifiers and timestamps before it ever leaves the
- * extension. Every visual characteristic that isn't a local identifier —
- * name, description, icon, color — is included, so an imported collection
- * looks exactly like the one that was exported.
+ * Converts a stored collection into what an export carries: a manifest of
+ * every resource, and the list of files whose content goes with it. Only
+ * local identifiers and timestamps are stripped before anything leaves the
+ * extension; every visual characteristic — name, description, icon, color — is
+ * kept, so an imported collection looks exactly like the one exported.
+ *
+ * (The version 1 bundle, a JSON document of websites only, is no longer
+ * written; it is still read on import.)
  */
-export function collectionToBundle(
-  collection: Collection,
-  now: () => number = Date.now,
-): CollectionBundle {
-  // The bundle format is URL-only. File resources have no URL and their
-  // content cannot be carried in a JSON bundle, so they are left out here —
-  // an attachment-carrying format is Part 3 of V3.
-  const resources: readonly BundleResource[] = collection.resources
-    .filter(isWebsiteResource)
-    .map(resource => ({
-      name: resource.name,
-      url: resource.url,
-    }))
-
-  const bundleCollection: BundleCollection = {
-    name: collection.name,
-    ...(collection.description
-      ? { description: collection.description }
-      : {}),
-    ...(collection.icon ? { icon: collection.icon } : {}),
-    ...(collection.color ? { color: collection.color } : {}),
-    resources,
-  }
-
-  return {
-    format: BUNDLE_FORMAT,
-    schemaVersion: BUNDLE_SCHEMA_VERSION,
-    exportedAt: new Date(now()).toISOString(),
-    collection: bundleCollection,
-  }
-}
-
-// --- The package (schema version 2) -----------------------------------------
 
 /** A file resource's place in a package: which resource, and where its bytes go. */
 export interface PackageAttachment {
@@ -92,7 +58,7 @@ export function planPackageAttachments(collection: Collection): PackageAttachmen
 /**
  * Builds a package's manifest: **every** resource of the collection, in
  * order — websites and files alike — stripped of local identifiers and
- * timestamps, exactly as `collectionToBundle` strips a version 1 bundle.
+ * timestamps.
  *
  * A file entry's size and hash come from `facts` (keyed by attachment path),
  * measured from the bytes actually being packed rather than from the size

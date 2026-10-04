@@ -3,155 +3,158 @@ import {
   createTestFileResource,
   createTestWebsiteResource,
 } from '@app/features/collections/test/collection.fixtures'
-import { collectionToBundle } from './bundle.mapper'
-import { BUNDLE_FORMAT, BUNDLE_SCHEMA_VERSION } from './bundle.types'
+import { collectionPackageManifestSchema } from '../validation/bundle.schema'
 import {
   createEmptyTestCollection,
   createManyResourcesTestCollection,
   createSingleResourceTestCollection,
-  createUnicodeNameTestCollection,
+  TEST_SHA256,
 } from '../test/portability.fixtures'
+import {
+  collectionToPackageManifest,
+  planPackageAttachments,
+  type AttachmentFacts,
+} from './bundle.mapper'
+import { BUNDLE_FORMAT, PACKAGE_SCHEMA_VERSION } from './bundle.types'
 
 const fixedNow = () => 2_000
 
-describe('collectionToBundle', () => {
-  it('produces the envelope fields', () => {
-    const bundle = collectionToBundle(createEmptyTestCollection(), fixedNow)
+const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
-    expect(bundle.format).toBe(BUNDLE_FORMAT)
-    expect(bundle.schemaVersion).toBe(BUNDLE_SCHEMA_VERSION)
-    expect(bundle.exportedAt).toBe(new Date(2_000).toISOString())
+const GITHUB = createTestWebsiteResource({ id: 'site-1', name: 'GitHub', url: 'https://github.com/' })
+const HANDBOOK = createTestFileResource({ id: 'file-1', name: 'Handbook', mimeType: 'application/pdf', sizeBytes: 10 })
+const MDN = createTestWebsiteResource({ id: 'site-2', name: 'MDN', url: 'https://developer.mozilla.org/' })
+const CONTRACT = createTestFileResource({ id: 'file-2', name: 'Contract', mimeType: DOCX, sizeBytes: 20 })
+
+const MIXED = createEmptyTestCollection({
+  name: 'Mixed',
+  resources: [GITHUB, HANDBOOK, MDN, CONTRACT],
+})
+
+function facts(entries: Record<string, AttachmentFacts>): Map<string, AttachmentFacts> {
+  return new Map(Object.entries(entries))
+}
+
+const MIXED_FACTS = facts({
+  'attachments/0001.pdf': { sizeBytes: 4_096, sha256: TEST_SHA256 },
+  'attachments/0002.docx': { sizeBytes: 8_192, sha256: 'b'.repeat(64) },
+})
+
+describe('planPackageAttachments', () => {
+  it('lists the collection’s files in order, each with the path it will have', () => {
+    expect(planPackageAttachments(MIXED)).toEqual([
+      { resourceId: 'file-1', name: 'Handbook', path: 'attachments/0001.pdf' },
+      { resourceId: 'file-2', name: 'Contract', path: 'attachments/0002.docx' },
+    ])
   })
 
-  it('omits description when the collection has none', () => {
-    const bundle = collectionToBundle(createEmptyTestCollection(), fixedNow)
+  it('numbers files among files, not among all resources', () => {
+    const collection = createEmptyTestCollection({ resources: [GITHUB, MDN, HANDBOOK] })
 
-    expect(bundle.collection).toEqual({
-      name: 'Empty Collection',
-      resources: [],
+    expect(planPackageAttachments(collection).map(attachment => attachment.path)).toEqual([
+      'attachments/0001.pdf',
+    ])
+  })
+
+  it('has nothing to attach for a collection of websites', () => {
+    expect(planPackageAttachments(createManyResourcesTestCollection())).toEqual([])
+  })
+
+  it('never uses a resource’s name in a path, however it is spelled', () => {
+    const hostile = createTestFileResource({
+      id: 'file-x',
+      name: '../../evil\\name?.pdf',
+      mimeType: 'application/pdf',
     })
-    expect(bundle.collection).not.toHaveProperty('description')
+
+    expect(planPackageAttachments(createEmptyTestCollection({ resources: [hostile] }))[0]?.path).toBe(
+      'attachments/0001.pdf',
+    )
+  })
+})
+
+describe('collectionToPackageManifest', () => {
+  it('produces the envelope at schema version 2', () => {
+    const manifest = collectionToPackageManifest(createEmptyTestCollection(), facts({}), fixedNow)
+
+    expect(manifest.format).toBe(BUNDLE_FORMAT)
+    expect(manifest.schemaVersion).toBe(PACKAGE_SCHEMA_VERSION)
+    expect(manifest.exportedAt).toBe(new Date(2_000).toISOString())
+    expect(manifest.collection).toEqual({ name: 'Empty Collection', resources: [] })
   })
 
-  it('includes description when the collection has one', () => {
-    const bundle = collectionToBundle(
-      createSingleResourceTestCollection(),
+  it('keeps every resource, websites and files alike, in the collection’s order', () => {
+    const manifest = collectionToPackageManifest(MIXED, MIXED_FACTS, fixedNow)
+
+    expect(manifest.collection.resources).toEqual([
+      { type: 'website', name: 'GitHub', url: 'https://github.com/' },
+      {
+        type: 'file',
+        name: 'Handbook',
+        mimeType: 'application/pdf',
+        sizeBytes: 4_096,
+        sha256: TEST_SHA256,
+        attachment: 'attachments/0001.pdf',
+      },
+      { type: 'website', name: 'MDN', url: 'https://developer.mozilla.org/' },
+      {
+        type: 'file',
+        name: 'Contract',
+        mimeType: DOCX,
+        sizeBytes: 8_192,
+        sha256: 'b'.repeat(64),
+        attachment: 'attachments/0002.docx',
+      },
+    ])
+  })
+
+  it('records the size of the bytes being packed, not the size noted when the file was added', () => {
+    const manifest = collectionToPackageManifest(MIXED, MIXED_FACTS, fixedNow)
+    const handbook = manifest.collection.resources[1]
+
+    // HANDBOOK was added at 10 bytes; the file on disk has since grown.
+    expect(handbook?.type === 'file' && handbook.sizeBytes).toBe(4_096)
+  })
+
+  it('carries the collection’s description, icon and colour, and leaves out what it lacks', () => {
+    const styled = collectionToPackageManifest(
+      createSingleResourceTestCollection({ icon: 'book', color: '#ff0000' }),
+      facts({}),
       fixedNow,
     )
-
-    expect(bundle.collection.name).toBe('Development')
-    expect(bundle.collection.description).toBe('Daily development tools')
-    expect(bundle.collection.resources).toEqual([
-      { name: 'GitHub', url: 'https://github.com/' },
-    ])
-  })
-
-  it('maps only resource name and url, excluding id, iconUrl, and timestamps', () => {
-    const collection = createSingleResourceTestCollection({
-      resources: [
-        {
-          id: 'resource-1',
-          type: 'website',
-          name: 'GitHub',
-          url: 'https://github.com/',
-          iconUrl: 'https://github.com/favicon.ico',
-          createdAt: 1_000,
-          updatedAt: 1_000,
-        },
-      ],
+    expect(styled.collection).toMatchObject({
+      description: 'Daily development tools',
+      icon: 'book',
+      color: '#ff0000',
     })
 
-    const bundle = collectionToBundle(collection, fixedNow)
-
-    expect(bundle.collection.resources).toEqual([
-      { name: 'GitHub', url: 'https://github.com/' },
-    ])
+    const plain = collectionToPackageManifest(createEmptyTestCollection(), facts({}), fixedNow)
+    expect(plain.collection).not.toHaveProperty('description')
+    expect(plain.collection).not.toHaveProperty('icon')
+    expect(plain.collection).not.toHaveProperty('color')
   })
 
-  it('excludes only id and timestamps from the bundled collection', () => {
-    const collection = createSingleResourceTestCollection({
-      icon: 'code',
-      color: '#2563eb',
-    })
+  it('writes no local identifier or timestamp anywhere in the manifest', () => {
+    const text = JSON.stringify(collectionToPackageManifest(MIXED, MIXED_FACTS, fixedNow))
 
-    const bundle = collectionToBundle(collection, fixedNow)
-
-    expect(bundle.collection).not.toHaveProperty('id')
-    expect(bundle.collection).not.toHaveProperty('createdAt')
-    expect(bundle.collection).not.toHaveProperty('updatedAt')
+    for (const secret of ['site-1', 'file-1', 'site-2', 'file-2', MIXED.id, 'createdAt', 'updatedAt', '"id"']) {
+      expect(text).not.toContain(secret)
+    }
   })
 
-  it('includes the icon and color so an imported collection looks identical', () => {
-    const collection = createSingleResourceTestCollection({
-      icon: 'code',
-      color: '#2563eb',
-    })
+  it('writes a manifest its own schema accepts', () => {
+    const manifest = collectionToPackageManifest(MIXED, MIXED_FACTS, fixedNow)
 
-    const bundle = collectionToBundle(collection, fixedNow)
-
-    expect(bundle.collection.icon).toBe('code')
-    expect(bundle.collection.color).toBe('#2563eb')
+    expect(collectionPackageManifestSchema.safeParse(manifest).success).toBe(true)
   })
 
-  it('omits icon and color when the collection has neither', () => {
-    const bundle = collectionToBundle(createEmptyTestCollection(), fixedNow)
-
-    expect(bundle.collection).not.toHaveProperty('icon')
-    expect(bundle.collection).not.toHaveProperty('color')
-  })
-
-  it('preserves resource order for collections with many resources', () => {
-    const collection = createManyResourcesTestCollection()
-
-    const bundle = collectionToBundle(collection, fixedNow)
-
-    expect(bundle.collection.resources.map((resource) => resource.name)).toEqual(
-      ['GitHub', 'MDN', 'Stack Overflow', 'Can I use', 'TypeScript Docs'],
-    )
-  })
-
-  it('preserves unicode collection names', () => {
-    const collection = createUnicodeNameTestCollection()
-
-    const bundle = collectionToBundle(collection, fixedNow)
-
-    expect(bundle.collection.name).toBe('日本語 コレクション 🎌 / café')
-  })
-
-  it('leaves file resources out of the URL-only bundle and keeps the websites in order', () => {
-    const collection = createSingleResourceTestCollection({
-      resources: [
-        createTestWebsiteResource({ id: 'w1', name: 'GitHub' }),
-        createTestFileResource({ id: 'f1', name: 'Handbook' }),
-        createTestWebsiteResource({
-          id: 'w2',
-          name: 'MDN',
-          url: 'https://developer.mozilla.org/',
-        }),
-      ],
-    })
-
-    const bundle = collectionToBundle(collection, fixedNow)
-
-    expect(bundle.collection.resources).toEqual([
-      { name: 'GitHub', url: 'https://github.com/' },
-      { name: 'MDN', url: 'https://developer.mozilla.org/' },
-    ])
-  })
-
-  it('exports an empty resource list for a collection holding only files', () => {
-    const collection = createSingleResourceTestCollection({
-      resources: [createTestFileResource()],
-    })
-
-    const bundle = collectionToBundle(collection, fixedNow)
-
-    expect(bundle.collection.resources).toEqual([])
-  })
-
-  it('defaults exportedAt to the current time when no clock is supplied', () => {
-    const bundle = collectionToBundle(createEmptyTestCollection())
-
-    expect(() => new Date(bundle.exportedAt).toISOString()).not.toThrow()
+  it('refuses to write a manifest for a file whose bytes were never read', () => {
+    expect(() =>
+      collectionToPackageManifest(
+        MIXED,
+        facts({ 'attachments/0001.pdf': { sizeBytes: 1, sha256: TEST_SHA256 } }),
+        fixedNow,
+      ),
+    ).toThrow('Contract')
   })
 })
