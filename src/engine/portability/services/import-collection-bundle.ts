@@ -1,5 +1,6 @@
 import {
   createCollection,
+  createFileResource,
   createWebsiteResource,
   type FactoryDependencies,
 } from '@app/features/collections/model/collection.factory'
@@ -13,16 +14,52 @@ import type {
   CollectionId,
   CollectionResource,
   CollectionsState,
+  ResourceId,
 } from '@app/features/collections/model/collection.types'
 import { isWebsiteResource } from '@app/features/collections/model/resource.guards'
 import { websiteNamesMatch } from '@app/features/collections/model/website-resource.validation'
-import type { BundleResource, CollectionBundle } from '../model/bundle.types'
-import { filterValidBundleResources } from '../validation/bundle.validation'
+import type {
+  BundleResource,
+  CollectionBundle,
+  CollectionPackageManifest,
+} from '../model/bundle.types'
+import {
+  filterValidBundleResources,
+  filterValidPackageEntries,
+} from '../validation/bundle.validation'
 
 /** The existing collection an import adds its resources to, instead of creating a new one. */
 export interface ImportTarget {
   readonly id: CollectionId
   readonly name: string
+}
+
+/**
+ * A file an import will add, with its content in hand. It comes from a
+ * package's attachment, already checked against the manifest (size, hash,
+ * signature) by the reader.
+ */
+export interface ImportPreviewFile {
+  readonly type: 'file'
+  readonly name: string
+  readonly mimeType: string
+  readonly sizeBytes: number
+  /** The file's bytes, stored in the browser when the import is confirmed. */
+  readonly content: Blob
+}
+
+/**
+ * One resource an import will add: a website (`{name, url}`, from any
+ * source) or a file (only from a package). Kept as one ordered list so an
+ * imported collection has its resources in the order they were exported.
+ */
+export type ImportPreviewResource = BundleResource | ImportPreviewFile
+
+/** Whether a previewed resource is a file rather than a website. */
+export function isImportPreviewFile(
+  resource: ImportPreviewResource,
+): resource is ImportPreviewFile {
+  return 'type' in resource && resource.type === 'file'
 }
 
 /** The outcome of previewing an import before anything is written to state. */
@@ -37,7 +74,7 @@ export interface ImportPreview {
   readonly icon?: string
   readonly color?: string
   readonly hasNameConflict: boolean
-  readonly resources: readonly BundleResource[]
+  readonly resources: readonly ImportPreviewResource[]
   readonly skippedDuplicateCount: number
   readonly skippedInvalidCount: number
 }
@@ -143,6 +180,152 @@ export function buildImportPreview(
 }
 
 /**
+ * Builds an import preview from a package: its manifest, and the attachments
+ * the reader has already verified. The same rules as `buildImportPreview`
+ * apply, extended to files — an entry with an invalid name or URL is dropped
+ * and counted, and a resource that repeats a name already kept (or, for a
+ * website, a URL) is dropped as a duplicate, first occurrence winning. A
+ * name is unique across a collection whatever the resource's kind, so a file
+ * and a website cannot share one.
+ *
+ * Each kept file carries its content, taken from `attachments` by the path
+ * its manifest entry names. Nothing here writes to state or to storage.
+ */
+export function buildPackageImportPreview(
+  manifest: CollectionPackageManifest,
+  attachments: ReadonlyMap<string, Blob>,
+  state: CollectionsState,
+): ImportPreview {
+  const { validEntries, skippedInvalidCount } = filterValidPackageEntries(
+    manifest.collection.resources,
+  )
+  const seenUrls = new Set<string>()
+  const seenNames: string[] = []
+  const resources: ImportPreviewResource[] = []
+  let skippedDuplicateCount = 0
+
+  for (const entry of validEntries) {
+    const isDuplicate =
+      (entry.type === 'website' && seenUrls.has(entry.url)) ||
+      seenNames.some(seenName => websiteNamesMatch(seenName, entry.name))
+
+    if (isDuplicate) {
+      skippedDuplicateCount += 1
+      continue
+    }
+
+    seenNames.push(entry.name)
+
+    if (entry.type === 'website') {
+      seenUrls.add(entry.url)
+      resources.push({ name: entry.name, url: entry.url })
+      continue
+    }
+
+    const content = attachments.get(entry.attachment)
+
+    if (!content) {
+      // The reader verifies every attachment the manifest names before this
+      // is ever called, so this is a programming error, not a bad file.
+      throw new Error(`No content was read for attachment "${entry.attachment}".`)
+    }
+
+    resources.push({
+      type: 'file',
+      name: entry.name,
+      mimeType: entry.mimeType,
+      sizeBytes: entry.sizeBytes,
+      content,
+    })
+  }
+
+  const { collection } = manifest
+
+  return {
+    suggestedName: collection.name,
+    ...(collection.description ? { description: collection.description } : {}),
+    ...(collection.icon ? { icon: collection.icon } : {}),
+    ...(collection.color ? { color: collection.color } : {}),
+    hasNameConflict: hasCollectionNameConflict(collection.name, state.collections),
+    resources,
+    skippedDuplicateCount,
+    skippedInvalidCount,
+  }
+}
+
+/** A file's content to store once an import is confirmed, under its new resource's id. */
+export interface ImportedFileContent {
+  readonly resourceId: ResourceId
+  readonly content: Blob
+}
+
+/** What confirming an import will write: the new state, and the files to store with it. */
+export interface PreparedImport {
+  readonly state: CollectionsState
+  /** Empty unless the import came from a package with files. */
+  readonly fileContents: readonly ImportedFileContent[]
+}
+
+/**
+ * Works out everything confirming an import will write, without writing any
+ * of it: the collections state with the new collection (or the added
+ * resources), and — for files — each one's content paired with the id its
+ * new resource was given. The caller stores the contents and then saves the
+ * state, and removes the contents again if either step fails, so an import
+ * is all or nothing. Throws exactly as `applyImportPreview` documents.
+ */
+export function prepareImport(
+  state: CollectionsState,
+  preview: ImportPreview,
+  chosenName: string,
+  dependencies?: FactoryDependencies,
+): PreparedImport {
+  const fileContents: ImportedFileContent[] = []
+  const buildResources = (): CollectionResource[] =>
+    preview.resources.map(resource => {
+      if (!isImportPreviewFile(resource)) {
+        return createWebsiteResource({ name: resource.name, url: resource.url }, dependencies)
+      }
+
+      const fileResource = createFileResource(
+        {
+          name: resource.name,
+          mimeType: resource.mimeType,
+          sizeBytes: resource.sizeBytes,
+        },
+        dependencies,
+      )
+      fileContents.push({ resourceId: fileResource.id, content: resource.content })
+
+      return fileResource
+    })
+
+  if (preview.target) {
+    const timestamp = (dependencies?.now ?? Date.now)()
+
+    return {
+      state: addResourcesToCollection(state, preview.target.id, buildResources(), timestamp),
+      fileContents,
+    }
+  }
+
+  const collection = createCollection(
+    {
+      name: chosenName,
+      description: preview.description,
+      icon: preview.icon,
+      color: preview.color,
+    },
+    dependencies,
+  )
+
+  return {
+    state: addCollection(state, { ...collection, resources: buildResources() }),
+    fileContents,
+  }
+}
+
+/**
  * Commits an import preview: either as one brand-new collection, named by
  * the caller (which may differ from the preview's suggested name if the
  * user renamed it before confirming), or — when the preview has a `target`
@@ -167,34 +350,7 @@ export function applyImportPreview(
   chosenName: string,
   dependencies?: FactoryDependencies,
 ): CollectionsState {
-  const buildResources = () =>
-    preview.resources.map(resource =>
-      createWebsiteResource(
-        { name: resource.name, url: resource.url },
-        dependencies,
-      ),
-    )
-
-  if (preview.target) {
-    const timestamp = (dependencies?.now ?? Date.now)()
-
-    return addResourcesToCollection(
-      state,
-      preview.target.id,
-      buildResources(),
-      timestamp,
-    )
-  }
-
-  const collection = createCollection(
-    {
-      name: chosenName,
-      description: preview.description,
-      icon: preview.icon,
-      color: preview.color,
-    },
-    dependencies,
-  )
-
-  return addCollection(state, { ...collection, resources: buildResources() })
+  // The state alone — enough for an import with no files. One that has files
+  // must go through `prepareImport`, which also says what to store.
+  return prepareImport(state, preview, chosenName, dependencies).state
 }

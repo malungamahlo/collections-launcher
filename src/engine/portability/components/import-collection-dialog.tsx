@@ -3,7 +3,10 @@ import { Button } from '@app/shared/components/ui/button'
 import { Dialog } from '@app/shared/components/ui/dialog'
 import { Input } from '@app/shared/components/ui/input'
 import { Label } from '@app/shared/components/ui/label'
+import { getResourceKind } from '@app/features/collections/model/resource-kind-registry'
+import { formatFileSize } from '@app/shared/lib/format-file-size'
 import type { ImportCollectionState } from '../hooks/use-import-collection'
+import { isImportPreviewFile } from '../services/import-collection-bundle'
 
 interface ImportCollectionDialogProps {
   readonly importState: Exclude<ImportCollectionState, { status: 'idle' }>
@@ -32,6 +35,30 @@ export function ImportCollectionDialog({
 }: ImportCollectionDialogProps) {
   const nameId = useId()
   const nameErrorId = useId()
+
+  if (importState.status === 'reading') {
+    const { progress } = importState
+
+    return (
+      <Dialog
+        title="Reading file…"
+        fallbackFocusRef={fallbackFocusRef}
+        onClose={onClose}
+      >
+        <p className="text-sm text-muted-foreground" role="status">
+          {progress && progress.totalFiles > 0
+            ? `Checking ${countLabel(progress.totalFiles, 'file', 'files')}: ${progress.filesRead} of ${progress.totalFiles} done.`
+            : 'Checking the file before anything is added.'}
+        </p>
+
+        <div className="mt-5 flex justify-end border-t border-border pt-5">
+          <Button variant="secondary" autoFocus onClick={onClose}>
+            Cancel
+          </Button>
+        </div>
+      </Dialog>
+    )
+  }
 
   if (importState.status === 'error') {
     return (
@@ -95,6 +122,8 @@ export function ImportCollectionDialog({
   const hasNameConflict =
     importState.status === 'previewing' ? importState.hasNameConflict : false
   const hasNothingToAdd = target !== undefined && preview.resources.length === 0
+  const files = preview.resources.filter(isImportPreviewFile)
+  const filesTotalBytes = files.reduce((total, file) => total + file.sizeBytes, 0)
   const idleLabel = target ? 'Add to collection' : 'Import collection'
   const busyLabel = target ? 'Adding…' : 'Importing…'
 
@@ -156,16 +185,30 @@ export function ImportCollectionDialog({
 
           {preview.resources.length > 0 && (
             <ul className="scroll-slim max-h-56 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
-              {preview.resources.map(resource => (
-                <li
-                  key={resource.url}
-                  className="truncate text-sm text-muted-foreground"
-                  title={`${resource.name} — ${resource.url}`}
-                >
-                  {resource.name} — {resource.url}
-                </li>
-              ))}
+              {preview.resources.map((resource, index) => {
+                // A website shows its address; a file, what kind it is and how big.
+                const detail = isImportPreviewFile(resource)
+                  ? `${getResourceKind(resource.mimeType).label} · ${formatFileSize(resource.sizeBytes)}`
+                  : resource.url
+
+                return (
+                  <li
+                    key={index}
+                    className="truncate text-sm text-muted-foreground"
+                    title={`${resource.name} — ${detail}`}
+                  >
+                    {resource.name} — {detail}
+                  </li>
+                )
+              })}
             </ul>
+          )}
+
+          {files.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {countLabel(files.length, 'file', 'files')} ({formatFileSize(filesTotalBytes)}) will
+              be stored in this browser.
+            </p>
           )}
 
           {(preview.skippedDuplicateCount > 0 ||

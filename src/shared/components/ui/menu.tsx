@@ -104,19 +104,34 @@ export function Menu({ label, children, items, triggerClassName }: MenuProps) {
       }
     }
 
-    // A fixed-position menu would drift away from its trigger as the page moves.
-    function handleMove(): void {
+    // A fixed-position menu would drift away from its trigger as the page
+    // moves, so it closes when the trigger is no longer where the menu was
+    // placed against. Only then: a scroll that leaves the trigger in place —
+    // one elsewhere on the page, or the tail of the scroll that brought the
+    // trigger into view just before it was pressed — is no reason to close.
+    const trigger = triggerRef.current
+    const placedAt = trigger?.getBoundingClientRect()
+
+    function handleScroll(): void {
+      const now = trigger?.getBoundingClientRect()
+
+      if (!placedAt || !now || now.top !== placedAt.top || now.left !== placedAt.left) {
+        close(false)
+      }
+    }
+
+    function handleResize(): void {
       close(false)
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
-    window.addEventListener('resize', handleMove)
-    window.addEventListener('scroll', handleMove, true)
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('scroll', handleScroll, true)
 
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown)
-      window.removeEventListener('resize', handleMove)
-      window.removeEventListener('scroll', handleMove, true)
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('scroll', handleScroll, true)
     }
   }, [isOpen, close])
 

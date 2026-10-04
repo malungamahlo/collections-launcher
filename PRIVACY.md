@@ -1,13 +1,14 @@
 # Privacy Policy — Collections Launcher
 
-Last updated: 2026-10-03
+Last updated: 2026-10-04
 
 Collections Launcher does not collect, transmit, or sell any user data.
 
 ## What the extension stores
 
 - The collections and resources (website names and URLs) that you create or import, including any bookmarks you choose to import.
-- For each file you add to a collection (a PDF, Markdown, Word, Excel, or PowerPoint file): its name, type, and size, and a reference to the file on your computer. The file itself is not copied into the extension; it is read from where it already is, only when you open it or save a copy of it.
+- For each file you add to a collection from your computer (a PDF, Markdown, Word, Excel, or PowerPoint file): its name, type, and size, and a reference to the file on your computer. The file itself is not copied into the extension; it is read from where it already is, only when you open it, save a copy of it, or export the collection it is in.
+- For each file that arrives in a collection you **import**: the file itself. An imported file has no place on your computer to refer to, so a copy is kept in the browser's local database. It is deleted when you delete that file or its collection.
 - This data is stored only in your browser, using Chrome's local extension storage (`chrome.storage.local`) and the browser's local database (IndexedDB).
 
 ## What the extension does not do
@@ -17,6 +18,7 @@ Collections Launcher does not collect, transmit, or sell any user data.
 - It does not access page content beyond the title and URL of the tab you actively choose to save.
 - It does not change, add, or delete any of your browser bookmarks. It reads them only when you choose **Import bookmarks**, and only the bookmarks you select are copied into your collections.
 - It does not upload your files anywhere. A Markdown file, Word document, Excel workbook, or PowerPoint presentation you open in the browser is read and drawn by the extension on your device, not by an online service. Any picture or other resource such a file links to on the internet is not loaded, so opening it cannot tell anyone that you did.
+- It does not send an exported collection anywhere. An exported `.collectionLauncher` file contains a copy of every file in that collection; it is saved as an ordinary download, and it goes only where you send it. It holds nothing about where those files live on your computer.
 - It does not use analytics, tracking pixels, or third-party scripts.
 - It does not require or support any account or sign-in.
 

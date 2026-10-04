@@ -10,15 +10,21 @@ import {
   createTestWebsiteResource,
 } from '@app/features/collections/test/collection.fixtures'
 import { useImportCollection } from './use-import-collection'
-import { applyImportPreview } from '../services/import-collection-bundle'
+import { prepareImport } from '../services/import-collection-bundle'
 import { createBundleText } from '../test/portability.fixtures'
 
 vi.mock('../services/import-collection-bundle', async importOriginal => {
   const actual =
     await importOriginal<typeof import('../services/import-collection-bundle')>()
 
-  return { ...actual, applyImportPreview: vi.fn(actual.applyImportPreview) }
+  return { ...actual, prepareImport: vi.fn(actual.prepareImport) }
 })
+
+/** These tests import websites only; nothing should ever be stored or removed. */
+const NO_FILE_STORE = {
+  saveBlob: vi.fn(() => Promise.resolve()),
+  remove: vi.fn(() => Promise.resolve()),
+}
 
 afterEach(() => {
   cleanup()
@@ -34,7 +40,7 @@ describe('useImportCollection', () => {
   it('moves to previewing for a valid file', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
 
     await act(async () => {
@@ -60,7 +66,7 @@ describe('useImportCollection', () => {
       collections: [createTestCollection({ name: 'Development' })],
     })
     const { result } = renderHook(() =>
-      useImportCollection({ state, save }),
+      useImportCollection({ state, save, fileContent: NO_FILE_STORE }),
     )
 
     await act(async () => {
@@ -78,7 +84,7 @@ describe('useImportCollection', () => {
   it('moves to error for non-JSON text', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
 
     await act(async () => {
@@ -94,7 +100,7 @@ describe('useImportCollection', () => {
   it('moves to error for a mismatched format', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
 
     await act(async () => {
@@ -112,7 +118,7 @@ describe('useImportCollection', () => {
   it('moves to error for an unsupported schema version', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
 
     await act(async () => {
@@ -127,7 +133,7 @@ describe('useImportCollection', () => {
   it('moves to error when the file cannot be read', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
     const unreadableFile = {
       text: () => Promise.reject(new Error('read failed')),
@@ -151,7 +157,7 @@ describe('useImportCollection', () => {
   it('does not show a name error while typing until the first invalid submit attempt', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
 
     await act(async () => {
@@ -192,7 +198,7 @@ describe('useImportCollection', () => {
     const save = vi
       .fn<(nextState: CollectionsState) => Promise<void>>()
       .mockResolvedValue(undefined)
-    const { result } = renderHook(() => useImportCollection({ state, save }))
+    const { result } = renderHook(() => useImportCollection({ state, save, fileContent: NO_FILE_STORE }))
 
     await act(async () => {
       await result.current.handleFileSelected(
@@ -235,7 +241,7 @@ describe('useImportCollection', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => undefined)
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
 
     await act(async () => {
@@ -247,7 +253,7 @@ describe('useImportCollection', () => {
 
     expect(result.current.importState).toEqual({
       status: 'error',
-      message: 'The collection could not be imported. Try again.',
+      message: 'The collection could not be imported. Nothing was added. Try again.',
     })
     expect(consoleError).toHaveBeenCalled()
     consoleError.mockRestore()
@@ -258,7 +264,7 @@ describe('useImportCollection', () => {
       collections: [createTestCollection({ name: 'Development' })],
     })
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
-    const { result } = renderHook(() => useImportCollection({ state, save }))
+    const { result } = renderHook(() => useImportCollection({ state, save, fileContent: NO_FILE_STORE }))
 
     await act(async () => {
       await result.current.handleFileSelected(
@@ -287,7 +293,7 @@ describe('useImportCollection', () => {
       .fn<(state: CollectionsState) => Promise<void>>()
       .mockResolvedValue(undefined)
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
 
     await act(async () => {
@@ -296,7 +302,7 @@ describe('useImportCollection', () => {
       )
     })
 
-    vi.mocked(applyImportPreview).mockImplementationOnce(() => {
+    vi.mocked(prepareImport).mockImplementationOnce(() => {
       throw new CollectionOperationError(
         'DUPLICATE_COLLECTION_NAME',
         'A collection with this name already exists.',
@@ -319,7 +325,7 @@ describe('useImportCollection', () => {
   it('enters previewing from an already-built preview, for non-file sources', () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
 
     act(() => {
@@ -344,7 +350,7 @@ describe('useImportCollection', () => {
       .fn<(state: CollectionsState) => Promise<void>>()
       .mockResolvedValue(undefined)
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
 
     act(() => {
@@ -398,7 +404,7 @@ describe('useImportCollection', () => {
       const save = vi
         .fn<(nextState: CollectionsState) => Promise<void>>()
         .mockResolvedValue(undefined)
-      const { result } = renderHook(() => useImportCollection({ state, save }))
+      const { result } = renderHook(() => useImportCollection({ state, save, fileContent: NO_FILE_STORE }))
 
       act(() => {
         result.current.startPreview(mergePreview)
@@ -425,7 +431,7 @@ describe('useImportCollection', () => {
         .spyOn(console, 'error')
         .mockImplementation(() => undefined)
       const { result } = renderHook(() =>
-        useImportCollection({ state: createTestState(), save }),
+        useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
       )
 
       act(() => {
@@ -438,7 +444,7 @@ describe('useImportCollection', () => {
       expect(save).not.toHaveBeenCalled()
       expect(result.current.importState).toEqual({
         status: 'error',
-        message: 'The collection could not be imported. Try again.',
+        message: 'The collection could not be imported. Nothing was added. Try again.',
       })
       consoleError.mockRestore()
     })
@@ -447,7 +453,7 @@ describe('useImportCollection', () => {
   it('returns to idle from close()', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
     )
 
     await act(async () => {

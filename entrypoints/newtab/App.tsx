@@ -111,9 +111,12 @@ function App() {
     fileDownload: fileDownloadAdapter,
     fileContent: fileContentAdapter,
   })
+  // A file that arrives by import has nowhere on this computer to point at,
+  // so its content is stored in the browser, through the same adapter.
   const importCollection = useImportCollection({
     state: storedCollections.state,
     save: storedCollections.save,
+    fileContent: fileContentAdapter,
   })
   const bookmarkImport = useBookmarkImport({
     adapter: bookmarksAdapter,

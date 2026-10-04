@@ -99,7 +99,26 @@ confused with each other.
   the hidden copy visible, and never keep one. Three optional permissions (`downloads`,
   `downloads.open`, `downloads.ui`) are asked for the first time an Office file is opened in its app,
   from the click itself; `downloads.open` also needs a click within ~5 seconds, hence the
-  "ready — Open" fallback. (See `documentation/Logic Doc/v3/11-…`.)
+  "ready — Open" fallback. (See `documentation/Logic Doc/v3/11-…`.) The other sanctioned
+  copy is a file that **arrives by import**: it has no place on this computer to point
+  at, so it is stored as a blob in IndexedDB (`saveBlob`), and removed with its resource.
+- **Export and import carry files** (`engine/portability`; decided with the user in
+  `plans/v3/04-attachment-bundle-format-decision.md`). A `.collectionLauncher` file is a
+  **zip inside** (the user never unzips it): `manifest.json` (schema version 2, every
+  resource in order, no local ids) plus `attachments/0001.pdf`, … — names are
+  **generated**, never the user's. Rules to keep:
+  - **Export is all or nothing**: a file that cannot be read stops it and is named; no
+    partial export (a user rule). Limits: 100 MB per file, 500 MB per package. One
+    collection per export. Files are located from the click, before any is read.
+  - **Import trusts nothing**: formats are told apart by first bytes, not names; sizes are
+    checked from the zip's directory before unpacking, and unpacking itself stops at the
+    declared size (`shared/lib/zip-entry-size.ts`, a zip-bomb guard the Office reader
+    shares); each attachment must match its declared size, SHA-256 and type signature
+    (`model/file-signature.ts`). Any mismatch **rejects the whole file**; an entry with a
+    bad name or URL is only skipped. Applying stores blobs, then saves state, and removes
+    the blobs again if anything fails.
+  - The old JSON-only export (schema version 1) is no longer written but **must keep
+    importing**. `jszip` is `import()`-ed, never in the entry chunk.
 - **The icon on an exported `.collectionLauncher` file** is a Windows matter, not the
   extension's: Windows picks a file's icon from its registered type, which an extension
   cannot set. `tools/windows-file-icon/install.ps1` (and `install.cmd`) registers it for
@@ -171,8 +190,12 @@ real application.
   assertion does not prove it looks right, and this found real bugs that unit tests
   (a fake DOM) could not: e.g. the native `<dialog>` focuses its *first focusable element*,
   so a form's `autoFocus` does not work inside a dialog.
-- `test.fixme` in `export-import.spec.ts` records a standing requirement: an export must
-  carry file resources' content, not just websites (V3 Part 3, not built yet).
+- **Export and import** are checked by `export-import.spec.ts`,
+  `export-files-verification.spec.ts` and `import-files-verification.spec.ts`. The import
+  tests use `launchSecondProfile()` (`fixtures.ts`) — a second, separate throwaway
+  profile — because importing into the profile that exported proves little.
+  `helpers/collection-package.ts` opens an exported package; hostile packages are crafted
+  with `jszip` in a temp folder.
 
 ## Docs workflow
 

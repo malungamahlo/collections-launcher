@@ -1,4 +1,9 @@
 import JSZip from 'jszip'
+import {
+  getDeclaredZipEntrySize,
+  readZipEntryBytes,
+  ZipEntryTooLargeError,
+} from '@app/shared/lib/zip-entry-size'
 
 /**
  * Reading the parts of an Office Open XML package (`.pptx`, and the like): a
@@ -24,14 +29,6 @@ const MAX_XML_PART_BYTES = 8 * 1024 * 1024
 const MAX_IMAGE_BYTES = 30 * 1024 * 1024
 /** The most the whole package may unpack to, across every part read. */
 const MAX_TOTAL_BYTES = 300 * 1024 * 1024
-
-/** A part's uncompressed size as the zip declares it, before anything is unpacked. */
-function declaredSize(entry: JSZip.JSZipObject): number {
-  const data = (entry as unknown as { _data?: { uncompressedSize?: unknown } })._data
-  const size = data?.uncompressedSize
-
-  return typeof size === 'number' && Number.isFinite(size) ? size : Infinity
-}
 
 /** Thrown when a package is too large, or not a package at all. */
 export class OfficePackageError extends Error {
@@ -70,19 +67,27 @@ export class OfficePackage {
       return undefined
     }
 
-    const size = declaredSize(entry)
+    const size = getDeclaredZipEntrySize(entry)
 
     if (size > limit || this.spent + size > MAX_TOTAL_BYTES) {
       throw new OfficePackageError('The document is too large to show.')
     }
 
-    const bytes = await entry.async('uint8array')
-    // The declared size is only a claim; count what actually came out too.
-    this.spent += bytes.byteLength
+    let bytes: Uint8Array
 
-    if (bytes.byteLength > limit || this.spent > MAX_TOTAL_BYTES) {
-      throw new OfficePackageError('The document is too large to show.')
+    try {
+      // The declared size is only a claim: unpacking stops as soon as more
+      // comes out than this part, or what is left of the budget, allows.
+      bytes = await readZipEntryBytes(entry, Math.min(limit, MAX_TOTAL_BYTES - this.spent))
+    } catch (error) {
+      if (error instanceof ZipEntryTooLargeError) {
+        throw new OfficePackageError('The document is too large to show.')
+      }
+
+      throw error
     }
+
+    this.spent += bytes.byteLength
 
     return bytes
   }

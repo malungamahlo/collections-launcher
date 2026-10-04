@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Menu } from './menu'
@@ -124,6 +124,45 @@ describe('Menu', () => {
     await user.click(trigger)
 
     await user.click(trigger)
+
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('stays open through a scroll that leaves its button where it was', async () => {
+    const user = userEvent.setup()
+    const { trigger } = renderMenu()
+    await user.click(trigger)
+
+    // Something else on the page scrolled, or the scroll that brought the
+    // button into view is still settling: the menu is still next to its button.
+    act(() => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    expect(screen.getByRole('menu')).not.toBeNull()
+  })
+
+  it('closes when a scroll moves its button away from it', async () => {
+    const user = userEvent.setup()
+    const { trigger } = renderMenu()
+    await user.click(trigger)
+
+    trigger.getBoundingClientRect = () => ({ top: 120, left: 0 }) as DOMRect
+    act(() => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('closes when the window is resized', async () => {
+    const user = userEvent.setup()
+    const { trigger } = renderMenu()
+    await user.click(trigger)
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
 
     expect(screen.queryByRole('menu')).toBeNull()
   })
