@@ -363,8 +363,28 @@ describe('opening a file in its own application', () => {
     expect(result.current.notice?.message).toContain('Opened "Contract"')
     // The user is told once that it is a copy, so nobody edits it thinking it is the original.
     expect(result.current.notice?.message).toContain('temporary copy')
-    expect(result.current.notice?.message).toContain('Save a copy')
     expect(result.current.notice?.actionLabel).toBeUndefined()
+  })
+
+  it.each([
+    ['a Word document', WORD, 'Word'],
+    ['an Excel workbook', SPREADSHEET, 'Excel'],
+    [
+      'a file of a type with no known app',
+      createTestFileResource({ id: 'x-2', name: 'Mystery', mimeType: 'application/x-something-new' }),
+      'its app',
+    ],
+  ])('tells the user of %s how to keep changes: Save As in the application', async (_label, resource, app) => {
+    const adapters = createAdapters()
+    const { result } = await renderActions(adapters)
+
+    await act(() => result.current.openInApp(resource))
+
+    expect(result.current.notice?.message).toBe(
+      `Opened "${resource.name}". It's a temporary copy — to keep any changes, use Save As in ${app}.`,
+    )
+    // The app's own Save a copy saves the original, not the edited copy, so it is not what to point at.
+    expect(result.current.notice?.message).not.toContain('Save a copy')
   })
 
   it('does not call the temporary copy a download anywhere the user reads', async () => {

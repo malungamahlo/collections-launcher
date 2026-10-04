@@ -2,7 +2,11 @@ import type {
   Collection,
   WebsiteResource,
 } from '@app/features/collections/model/collection.types'
-import { BUNDLE_FORMAT, BUNDLE_SCHEMA_VERSION } from '../model/bundle.types'
+import {
+  BUNDLE_FORMAT,
+  BUNDLE_SCHEMA_VERSION,
+  PACKAGE_SCHEMA_VERSION,
+} from '../model/bundle.types'
 
 const TEST_TIMESTAMP = 1_000
 
@@ -137,4 +141,53 @@ export function createBundleObject(
 /** Same as {@link createBundleObject}, serialized as the JSON text an import would read. */
 export function createBundleText(overrides?: BundleObjectOverrides): string {
   return JSON.stringify(createBundleObject(overrides))
+}
+
+/** A SHA-256 as a manifest writes it: 64 lower-case hex digits. */
+export const TEST_SHA256 = 'a'.repeat(64)
+
+/** A valid file entry of a package manifest, with any field overridable. */
+export function createManifestFileEntry(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    type: 'file',
+    name: 'Handbook',
+    mimeType: 'application/pdf',
+    sizeBytes: 2_048,
+    sha256: TEST_SHA256,
+    attachment: 'attachments/0001.pdf',
+    ...overrides,
+  }
+}
+
+/**
+ * Builds a plain object shaped like a valid package manifest (schema version
+ * 2) holding one website and one file, with any envelope or collection field
+ * overridable to construct malformed or hostile variants.
+ */
+export function createManifestObject(
+  overrides: BundleObjectOverrides = {},
+): Record<string, unknown> {
+  const { collection: collectionOverrides, ...envelopeOverrides } = overrides
+
+  return {
+    format: BUNDLE_FORMAT,
+    schemaVersion: PACKAGE_SCHEMA_VERSION,
+    exportedAt: new Date(TEST_TIMESTAMP).toISOString(),
+    ...envelopeOverrides,
+    collection: {
+      name: 'Development',
+      resources: [
+        { type: 'website', name: 'GitHub', url: 'https://github.com/' },
+        createManifestFileEntry(),
+      ],
+      ...collectionOverrides,
+    },
+  }
+}
+
+/** Same as {@link createManifestObject}, serialized as the text of a `manifest.json`. */
+export function createManifestText(overrides?: BundleObjectOverrides): string {
+  return JSON.stringify(createManifestObject(overrides))
 }

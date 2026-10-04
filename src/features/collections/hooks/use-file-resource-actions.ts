@@ -14,7 +14,7 @@ import type { FileResource } from '../model/collection.types'
 import { getFileResourceFileName } from '../model/file-name'
 import { buildFileDocumentUrl } from '../model/file-document-location'
 import { buildFileViewerUrl } from '../model/file-viewer-location'
-import { getViewerStrategy } from '../model/resource-kind-registry'
+import { getResourceKind, getViewerStrategy } from '../model/resource-kind-registry'
 import { describeFileReadFailure } from './file-read-messages'
 import { useSaveFileCopy } from './use-save-file-copy'
 
@@ -360,11 +360,17 @@ export function useFileResourceActions({
         return undefined
       case 'working':
         return { tone: 'info', message: `Opening "${state.resource.name}"…` }
-      case 'opened':
+      case 'opened': {
+        // What was opened is a copy that is deleted afterwards, so changes saved
+        // into it are lost. Only the application's own Save As keeps them: the
+        // app's Save a copy saves the *original*, not what was edited.
+        const appName = getResourceKind(state.resource.mimeType).appName
+
         return {
           tone: 'info',
-          message: `Opened "${state.resource.name}". It's a temporary copy — use Save a copy to keep any changes.`,
+          message: `Opened "${state.resource.name}". It's a temporary copy — to keep any changes, use Save As in ${appName ?? 'its app'}.`,
         }
+      }
       case 'ready':
         return {
           tone: 'info',

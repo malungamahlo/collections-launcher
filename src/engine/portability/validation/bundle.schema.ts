@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { COLLECTION_NAME_MAX_LENGTH } from '@app/features/collections/model/collection.validation'
-import { BUNDLE_FORMAT, BUNDLE_SCHEMA_VERSION } from '../model/bundle.types'
+import {
+  BUNDLE_FORMAT,
+  BUNDLE_SCHEMA_VERSION,
+  PACKAGE_SCHEMA_VERSION,
+} from '../model/bundle.types'
+import { isValidAttachmentPath } from '../model/package-layout'
 
 /**
  * Structural-safety cap on a bundle collection's description length. No
@@ -70,4 +75,53 @@ export const collectionBundleSchema = z.object({
   schemaVersion: z.literal(BUNDLE_SCHEMA_VERSION),
   exportedAt: z.string(),
   collection: bundleCollectionSchema,
+})
+
+// --- The package manifest (schema version 2) ------------------------------------
+
+/** Structural-safety cap on a declared MIME type. Real ones are well under 100 characters. */
+const MAX_MIME_TYPE_LENGTH = 255
+
+const packageWebsiteEntrySchema = z.object({
+  type: z.literal('website'),
+  name: z.string().max(MAX_RAW_RESOURCE_FIELD_LENGTH),
+  url: z.string().max(MAX_RAW_RESOURCE_FIELD_LENGTH),
+})
+
+const packageFileEntrySchema = z.object({
+  type: z.literal('file'),
+  name: z.string().max(MAX_RAW_RESOURCE_FIELD_LENGTH),
+  mimeType: z.string().max(MAX_MIME_TYPE_LENGTH),
+  // The per-file and per-package limits are checked against the zip itself,
+  // where a clearer reason can be given; here a size only has to be a size.
+  sizeBytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  // Only a path this app could have written; see `isValidAttachmentPath`.
+  attachment: z.string().refine(isValidAttachmentPath),
+})
+
+const packageCollectionSchema = z.object({
+  name: z.string().max(COLLECTION_NAME_MAX_LENGTH),
+  description: z.string().max(MAX_BUNDLE_DESCRIPTION_LENGTH).optional(),
+  icon: z.string().max(MAX_BUNDLE_ICON_LENGTH).optional(),
+  color: z.string().max(MAX_BUNDLE_COLOR_LENGTH).optional(),
+  resources: z
+    .array(z.discriminatedUnion('type', [packageWebsiteEntrySchema, packageFileEntrySchema]))
+    .max(MAX_BUNDLE_RESOURCES),
+})
+
+/**
+ * Validates a package manifest's envelope and structure, the same way
+ * `collectionBundleSchema` does for the version 1 document: is this a
+ * manifest at all, and are its fields the right shape and a sane size. A
+ * file entry's attachment path and SHA-256 are checked here because a
+ * malformed one means the manifest was not written by this app — unlike a
+ * resource's name or URL, which are checked entry by entry afterwards and
+ * only skip that entry.
+ */
+export const collectionPackageManifestSchema = z.object({
+  format: z.literal(BUNDLE_FORMAT),
+  schemaVersion: z.literal(PACKAGE_SCHEMA_VERSION),
+  exportedAt: z.string(),
+  collection: packageCollectionSchema,
 })
