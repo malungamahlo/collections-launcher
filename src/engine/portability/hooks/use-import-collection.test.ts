@@ -26,6 +26,12 @@ const NO_FILE_STORE = {
   remove: vi.fn(() => Promise.resolve()),
 }
 
+/** Nothing is stored by these tests, so the browser's storage is never asked about. */
+const NO_STORAGE = {
+  estimate: vi.fn(() => Promise.resolve(undefined)),
+  persist: vi.fn(() => Promise.resolve(true)),
+}
+
 afterEach(() => {
   cleanup()
 })
@@ -40,7 +46,7 @@ describe('useImportCollection', () => {
   it('moves to previewing for a valid file', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     await act(async () => {
@@ -66,7 +72,7 @@ describe('useImportCollection', () => {
       collections: [createTestCollection({ name: 'Development' })],
     })
     const { result } = renderHook(() =>
-      useImportCollection({ state, save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state, save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     await act(async () => {
@@ -84,7 +90,7 @@ describe('useImportCollection', () => {
   it('moves to error for non-JSON text', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     await act(async () => {
@@ -100,7 +106,7 @@ describe('useImportCollection', () => {
   it('moves to error for a mismatched format', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     await act(async () => {
@@ -118,7 +124,7 @@ describe('useImportCollection', () => {
   it('moves to error for an unsupported schema version', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     await act(async () => {
@@ -133,7 +139,7 @@ describe('useImportCollection', () => {
   it('moves to error when the file cannot be read', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
     const unreadableFile = {
       text: () => Promise.reject(new Error('read failed')),
@@ -157,7 +163,7 @@ describe('useImportCollection', () => {
   it('does not show a name error while typing until the first invalid submit attempt', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     await act(async () => {
@@ -198,7 +204,7 @@ describe('useImportCollection', () => {
     const save = vi
       .fn<(nextState: CollectionsState) => Promise<void>>()
       .mockResolvedValue(undefined)
-    const { result } = renderHook(() => useImportCollection({ state, save, fileContent: NO_FILE_STORE }))
+    const { result } = renderHook(() => useImportCollection({ state, save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }))
 
     await act(async () => {
       await result.current.handleFileSelected(
@@ -241,7 +247,7 @@ describe('useImportCollection', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => undefined)
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     await act(async () => {
@@ -264,7 +270,7 @@ describe('useImportCollection', () => {
       collections: [createTestCollection({ name: 'Development' })],
     })
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
-    const { result } = renderHook(() => useImportCollection({ state, save, fileContent: NO_FILE_STORE }))
+    const { result } = renderHook(() => useImportCollection({ state, save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }))
 
     await act(async () => {
       await result.current.handleFileSelected(
@@ -293,7 +299,7 @@ describe('useImportCollection', () => {
       .fn<(state: CollectionsState) => Promise<void>>()
       .mockResolvedValue(undefined)
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     await act(async () => {
@@ -325,7 +331,7 @@ describe('useImportCollection', () => {
   it('enters previewing from an already-built preview, for non-file sources', () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     act(() => {
@@ -350,7 +356,7 @@ describe('useImportCollection', () => {
       .fn<(state: CollectionsState) => Promise<void>>()
       .mockResolvedValue(undefined)
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     act(() => {
@@ -404,7 +410,7 @@ describe('useImportCollection', () => {
       const save = vi
         .fn<(nextState: CollectionsState) => Promise<void>>()
         .mockResolvedValue(undefined)
-      const { result } = renderHook(() => useImportCollection({ state, save, fileContent: NO_FILE_STORE }))
+      const { result } = renderHook(() => useImportCollection({ state, save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }))
 
       act(() => {
         result.current.startPreview(mergePreview)
@@ -431,7 +437,7 @@ describe('useImportCollection', () => {
         .spyOn(console, 'error')
         .mockImplementation(() => undefined)
       const { result } = renderHook(() =>
-        useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+        useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
       )
 
       act(() => {
@@ -453,7 +459,7 @@ describe('useImportCollection', () => {
   it('returns to idle from close()', async () => {
     const save = vi.fn<(state: CollectionsState) => Promise<void>>()
     const { result } = renderHook(() =>
-      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE }),
+      useImportCollection({ state: createTestState(), save, fileContent: NO_FILE_STORE, storage: NO_STORAGE }),
     )
 
     await act(async () => {

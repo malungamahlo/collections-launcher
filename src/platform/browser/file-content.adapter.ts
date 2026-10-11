@@ -22,11 +22,16 @@ export class FileContentError extends Error {
 }
 
 /**
- * Where a resource's bytes live. A locally added file is stored as a live
- * *reference* to the user's own file, so no second copy of its bytes exists
- * and opening it always shows its current content. A file that arrived by
- * import has no location on this machine to point at, so its bytes are
- * stored as a `Blob` — the one case where a copy is the only option.
+ * Where a resource's bytes live. Every file a collection holds is stored as a
+ * **copy** (`blob`): the collection owns it, the way a file uploaded to a chat
+ * belongs to the chat, and the user's original on disk is never read again or
+ * changed. (Decided with the user on 2026-10-11; see
+ * `plans/v3/05-owned-file-storage-and-editing-decision.md`.)
+ *
+ * `handle` is how files were stored before that: a live reference to the
+ * user's own file. Nothing writes one any more. An entry of this kind is
+ * still read, and is replaced by a copy (**adopted**) the first time it can
+ * be read.
  */
 export type StoredFileContent =
   | { readonly kind: 'handle'; readonly handle: FileSystemFileHandle }
@@ -44,21 +49,39 @@ export interface FileContentStore {
   delete(id: ResourceId): Promise<void>
 }
 
+/** What happened when an older, referenced file was offered for adoption. */
+export type AdoptionOutcome =
+  /** The reference was replaced by a copy of the file. */
+  | 'adopted'
+  /** It was already a copy; nothing to do. */
+  | 'already-owned'
+  /** The browser would have to ask the user for access first, which needs a click. */
+  | 'needs-access'
+  /** Nothing is stored for the resource, or the file it referenced is gone or unreadable. */
+  | 'unavailable'
+
 /**
  * Stores and retrieves the bytes behind `FileResource`s. Callers ask only for
  * `load(id)` and get a `Blob` back; nothing outside the adapter needs to know
- * whether a given resource is a reference or a stored copy.
+ * how a given resource is stored.
  */
 export interface FileContentAdapter {
-  /** Stores a live reference to a file the user picked with the File System Access API. */
-  saveHandle(id: ResourceId, handle: FileSystemFileHandle): Promise<void>
-  /** Stores a copy of a file's bytes, for content with no local file to reference. */
+  /** Stores a copy of a file's bytes as the resource's content, replacing any it had. */
   saveBlob(id: ResourceId, blob: Blob): Promise<void>
   /**
-   * Returns the file's current content, whichever form it is stored in.
+   * Returns the file's content. An older entry that is still a reference is
+   * read through it — asking the user for access if that has lapsed, which
+   * needs a click — and then adopted, so this is the last time it depends on
+   * the original.
    * @throws FileContentError with a `code` saying why it could not be read.
    */
   load(id: ResourceId): Promise<Blob>
+  /**
+   * Replaces an older reference with a copy **without ever prompting**: only
+   * when the browser still has access to the original. Safe to call for any
+   * resource, at any time; never throws.
+   */
+  adopt(id: ResourceId): Promise<AdoptionOutcome>
   /** Forgets the resource's content. A resource with none stored is not an error. */
   remove(id: ResourceId): Promise<void>
 }
@@ -139,15 +162,10 @@ async function readHandle(handle: FileSystemFileHandle): Promise<File> {
 
 /**
  * Stores file content in a `FileContentStore` (IndexedDB by default in the
- * running extension), holding a handle for files added locally and a `Blob`
- * for files that arrived by import, both keyed by the resource's own id.
+ * running extension), keyed by the resource's own id.
  */
 export class BrowserFileContentAdapter implements FileContentAdapter {
   constructor(private readonly store: FileContentStore) {}
-
-  async saveHandle(id: ResourceId, handle: FileSystemFileHandle): Promise<void> {
-    await this.store.put(id, { kind: 'handle', handle })
-  }
 
   async saveBlob(id: ResourceId, blob: Blob): Promise<void> {
     await this.store.put(id, { kind: 'blob', blob })
@@ -163,10 +181,65 @@ export class BrowserFileContentAdapter implements FileContentAdapter {
       )
     }
 
-    return stored.kind === 'blob' ? stored.blob : readHandle(stored.handle)
+    if (stored.kind === 'blob') {
+      return stored.blob
+    }
+
+    const file = await readHandle(stored.handle)
+
+    // The file is in hand, so take the chance to own it. If that fails (the
+    // disk is full, the file changed mid-read) the file just read is still
+    // returned: opening it matters more than adopting it, which can wait.
+    try {
+      return await this.replaceWithCopy(id, file)
+    } catch (error) {
+      console.error(`Could not adopt file resource ${id}`, error)
+
+      return file
+    }
+  }
+
+  async adopt(id: ResourceId): Promise<AdoptionOutcome> {
+    try {
+      const stored = await this.store.get(id)
+
+      if (!stored) {
+        return 'unavailable'
+      }
+
+      if (stored.kind === 'blob') {
+        return 'already-owned'
+      }
+
+      const handle = stored.handle as PermissionedFileHandle
+
+      if ((await handle.queryPermission(READ_ACCESS)) !== 'granted') {
+        return 'needs-access'
+      }
+
+      await this.replaceWithCopy(id, await handle.getFile())
+
+      return 'adopted'
+    } catch {
+      return 'unavailable'
+    }
   }
 
   async remove(id: ResourceId): Promise<void> {
     await this.store.delete(id)
+  }
+
+  /**
+   * Stores a copy of `file` in place of whatever `id` had, and returns it.
+   * The bytes are read into memory first: a `File` from a handle is only a
+   * view of the file on disk, and storing the view could capture a file that
+   * changes, or vanishes, while it is being written.
+   */
+  private async replaceWithCopy(id: ResourceId, file: File): Promise<Blob> {
+    const blob = new Blob([await file.arrayBuffer()], { type: file.type })
+
+    await this.store.put(id, { kind: 'blob', blob })
+
+    return blob
   }
 }

@@ -112,7 +112,7 @@ export function FileResourceForm({
         ) : (
           <p id={fileHintId} className="text-xs leading-5 text-muted-foreground">
             {chosenFile
-              ? 'The file stays where it is; this saves a link to it.'
+              ? 'A copy is kept in this browser. Later changes to the original won’t appear here.'
               : `Supported: ${SUPPORTED_KINDS}, up to ${formatFileSize(MAX_FILE_RESOURCE_SIZE_BYTES)}.`}
           </p>
         )}

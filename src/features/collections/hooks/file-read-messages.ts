@@ -1,4 +1,5 @@
 import type { FileContentErrorCode } from '@app/platform/browser/file-content.adapter'
+import { formatFileSize } from '@app/shared/lib/format-file-size'
 
 /**
  * What to tell the user when a file resource's content could not be read in
@@ -54,4 +55,16 @@ export function describeCannotDisplay(
   return reason === 'too-large'
     ? `"${resourceName}" is too large to show here.${instead}`
     : `"${resourceName}" can't be shown here — it may be damaged or in a form this view doesn't read.${instead}`
+}
+
+/**
+ * What to tell the user when the browser does not have room to store what
+ * they are adding. A collection keeps its own copy of every file, so this is
+ * checked before anything is written.
+ */
+export function describeStorageShortfall(
+  shortfall: { readonly neededBytes: number; readonly freeBytes: number },
+  what: 'this file' | 'these files',
+): string {
+  return `There isn’t enough room in this browser to store ${what}: ${formatFileSize(shortfall.neededBytes)} is needed and ${formatFileSize(shortfall.freeBytes)} is free.`
 }

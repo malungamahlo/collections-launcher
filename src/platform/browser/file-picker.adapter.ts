@@ -1,6 +1,6 @@
 /** A file the user picked: its live handle and the file read through it. */
 export interface PickedFile {
-  /** A reference to the user's own file; storing it avoids keeping a copy of the bytes. */
+  /** A reference to the user's own file. It is not stored: the collection keeps a copy of the bytes. */
   readonly handle: FileSystemFileHandle
   /** The file's current metadata and content, read through the handle. */
   readonly file: File

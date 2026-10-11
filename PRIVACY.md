@@ -1,14 +1,15 @@
 # Privacy Policy — Collections Launcher
 
-Last updated: 2026-10-04
+Last updated: 2026-10-11
 
 Collections Launcher does not collect, transmit, or sell any user data.
 
 ## What the extension stores
 
 - The collections and resources (website names and URLs) that you create or import, including any bookmarks you choose to import.
-- For each file you add to a collection from your computer (a PDF, Markdown, Word, Excel, or PowerPoint file): its name, type, and size, and a reference to the file on your computer. The file itself is not copied into the extension; it is read from where it already is, only when you open it, save a copy of it, or export the collection it is in.
-- For each file that arrives in a collection you **import**: the file itself. An imported file has no place on your computer to refer to, so a copy is kept in the browser's local database. It is deleted when you delete that file or its collection.
+- For each file you add to a collection from your computer (a PDF, Markdown, Word, Excel, or PowerPoint file): its name, type, and size, and a copy of the file itself, kept in the browser's local database. The original on your computer is read once, when you add it, and is never changed. The copy is deleted when you delete that file or its collection. (A file added with an earlier version was stored as a reference to the original instead; it is copied in the same way the next time the extension can read it.)
+- For each file that arrives in a collection you **import**: the file itself, kept in the browser's local database in the same way. It is deleted when you delete that file or its collection.
+- The extension asks the browser to treat this storage as persistent, so the browser does not clear your files on its own when the disk runs low. Removing the extension, or clearing its data, still deletes them.
 - This data is stored only in your browser, using Chrome's local extension storage (`chrome.storage.local`) and the browser's local database (IndexedDB).
 
 ## What the extension does not do

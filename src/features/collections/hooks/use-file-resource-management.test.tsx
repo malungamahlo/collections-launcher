@@ -3,6 +3,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { FileContentAdapter } from '@app/platform/browser/file-content.adapter'
+import type { StorageEstimate } from '@app/platform/browser/storage-quota.adapter'
 import {
   FilePickerError,
   type FilePickerAdapter,
@@ -59,13 +60,12 @@ function createFileContent() {
   const calls: string[] = []
 
   const fileContent = {
-    saveHandle: vi.fn((id: string, handle: FileSystemFileHandle) => {
+    saveBlob: vi.fn((id: string, blob: Blob) => {
       void id
-      void handle
-      calls.push('saveHandle')
+      void blob
+      calls.push('saveBlob')
       return Promise.resolve()
     }),
-    saveBlob: vi.fn(() => Promise.resolve()),
     load: vi.fn(),
     remove: vi.fn((id: string) => {
       void id
@@ -75,6 +75,14 @@ function createFileContent() {
   }
 
   return { fileContent: fileContent as unknown as FileContentAdapter, spies: fileContent, calls }
+}
+
+/** The browser's storage: plenty of room, and willing to keep what is stored, unless a test says otherwise. */
+function createStorage(estimate: StorageEstimate | undefined = { quota: 10_000_000_000, usage: 0 }) {
+  return {
+    estimate: vi.fn(() => Promise.resolve(estimate)),
+    persist: vi.fn(() => Promise.resolve(true)),
+  }
 }
 
 function createSave(calls?: string[]) {
@@ -92,6 +100,7 @@ async function openWithPickedFile(
     state?: CollectionsState
     save?: ReturnType<typeof createSave>
     content?: ReturnType<typeof createFileContent>
+    storage?: ReturnType<typeof createStorage>
   } = {},
 ) {
   const collection = createTestCollection()
@@ -99,19 +108,21 @@ async function openWithPickedFile(
   const picker = options.picker ?? createFilePicker(createPickedFile())
   const content = options.content ?? createFileContent()
   const save = options.save ?? createSave(content.calls)
+  const storage = options.storage ?? createStorage()
   const rendered = renderHook(() =>
     useFileResourceManagement({
       state,
       save,
       filePicker: picker,
       fileContent: content.fileContent,
+      storage,
     }),
   )
 
   act(() => rendered.result.current.openCreate(collection))
   await act(async () => rendered.result.current.chooseFile())
 
-  return { ...rendered, collection, picker, content, save }
+  return { ...rendered, collection, picker, content, save, storage }
 }
 
 describe('suggestResourceName', () => {
@@ -142,6 +153,7 @@ describe('useFileResourceManagement', () => {
           save: createSave(),
           filePicker: createFilePicker(),
           fileContent: createFileContent().fileContent,
+          storage: createStorage(),
         }),
       )
 
@@ -326,7 +338,7 @@ describe('useFileResourceManagement', () => {
   })
 
   describe('adding the file', () => {
-    it('stores the file reference, then saves the new resource, then closes', async () => {
+    it('stores a copy of the file, then saves the new resource, then closes', async () => {
       const content = createFileContent()
       const { result, collection, save } = await openWithPickedFile({ content })
 
@@ -340,11 +352,12 @@ describe('useFileResourceManagement', () => {
         mimeType: 'application/pdf',
         sizeBytes: 8,
       })
-      expect(content.spies.saveHandle).toHaveBeenCalledWith(
-        saved?.id,
-        result.current.pickedFile?.handle,
-      )
-      expect(content.calls).toEqual(['saveHandle', 'save'])
+      const [storedId, stored] = content.spies.saveBlob.mock.calls[0] ?? []
+      expect(storedId).toBe(saved?.id)
+      // The bytes themselves, typed as the resource is — not a pointer to the original.
+      expect(await (stored as Blob).text()).toBe('%PDF-1.7')
+      expect((stored as Blob).type).toBe('application/pdf')
+      expect(content.calls).toEqual(['saveBlob', 'save'])
       expect(result.current.isOpen).toBe(false)
       expect(save.mock.calls[0]?.[0].collections[0]?.id).toBe(collection.id)
     })
@@ -393,7 +406,7 @@ describe('useFileResourceManagement', () => {
       await act(async () => result.current.submit())
 
       expect(result.current.fileError).toBe('Choose a file to add.')
-      expect(content.spies.saveHandle).not.toHaveBeenCalled()
+      expect(content.spies.saveBlob).not.toHaveBeenCalled()
       expect(save).not.toHaveBeenCalled()
       expect(result.current.isOpen).toBe(true)
     })
@@ -411,7 +424,7 @@ describe('useFileResourceManagement', () => {
       await act(async () => result.current.submit())
 
       expect(result.current.nameError).toBe('Enter a resource name.')
-      expect(content.spies.saveHandle).not.toHaveBeenCalled()
+      expect(content.spies.saveBlob).not.toHaveBeenCalled()
       expect(save).not.toHaveBeenCalled()
     })
 
@@ -430,7 +443,7 @@ describe('useFileResourceManagement', () => {
       expect(result.current.nameError).toBe(
         'A resource with this name already exists in that collection.',
       )
-      expect(content.spies.saveHandle).not.toHaveBeenCalled()
+      expect(content.spies.saveBlob).not.toHaveBeenCalled()
       expect(save).not.toHaveBeenCalled()
       expect(result.current.isOpen).toBe(true)
     })
@@ -448,7 +461,7 @@ describe('useFileResourceManagement', () => {
       expect(result.current.nameError).toBeDefined()
     })
 
-    it('removes the stored file reference and keeps the form open when saving fails', async () => {
+    it('removes the stored copy and keeps the form open when saving fails', async () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
       const content = createFileContent()
       const save = createSave().mockRejectedValue(new Error('storage failure'))
@@ -456,14 +469,14 @@ describe('useFileResourceManagement', () => {
 
       await act(async () => result.current.submit())
 
-      const storedId = content.spies.saveHandle.mock.calls[0]?.[0]
+      const storedId = content.spies.saveBlob.mock.calls[0]?.[0]
       expect(content.spies.remove).toHaveBeenCalledWith(storedId)
       expect(result.current.formError).toBe('The file could not be added. Try again.')
       expect(result.current.isOpen).toBe(true)
       expect(consoleError).toHaveBeenCalled()
     })
 
-    it('still reports the save failure if removing the reference also fails', async () => {
+    it('still reports the save failure if removing the copy also fails', async () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
       const content = createFileContent()
       content.spies.remove.mockRejectedValueOnce(new Error('cleanup failed'))
@@ -476,17 +489,123 @@ describe('useFileResourceManagement', () => {
       expect(consoleError).toHaveBeenCalledTimes(2)
     })
 
-    it('saves nothing when the file reference cannot be stored', async () => {
+    it('saves nothing when the copy cannot be stored, and clears whatever a failed write left', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => undefined)
       const content = createFileContent()
-      content.spies.saveHandle.mockRejectedValueOnce(new Error('quota'))
+      content.spies.saveBlob.mockRejectedValueOnce(new Error('quota'))
       const { result, save } = await openWithPickedFile({ content })
 
       await act(async () => result.current.submit())
 
       expect(save).not.toHaveBeenCalled()
-      expect(content.spies.remove).not.toHaveBeenCalled()
+      expect(content.spies.remove).toHaveBeenCalledWith(content.spies.saveBlob.mock.calls[0]?.[0])
       expect(result.current.formError).toBe('The file could not be added. Try again.')
+    })
+
+    it('records the size of the file as it is when added, not as it was when chosen', async () => {
+      let current = '%PDF-1.7'
+      const grown: PickedFile = {
+        handle: { kind: 'file', name: 'Report.pdf' } as unknown as FileSystemFileHandle,
+        file: {
+          name: 'Report.pdf',
+          type: 'application/pdf',
+          size: 8,
+          arrayBuffer: () => Promise.resolve(new TextEncoder().encode(current).buffer),
+        } as unknown as File,
+      }
+      const { result, save } = await openWithPickedFile({ picker: createFilePicker(grown) })
+      current = '%PDF-1.7 and then some more'
+
+      await act(async () => result.current.submit())
+
+      expect(save.mock.calls[0]?.[0].collections[0]?.resources[0]).toMatchObject({
+        sizeBytes: current.length,
+      })
+    })
+
+    it('says so, storing nothing, when the file can no longer be read', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const vanished: PickedFile = {
+        handle: { kind: 'file', name: 'Gone.pdf' } as unknown as FileSystemFileHandle,
+        file: {
+          name: 'Gone.pdf',
+          type: 'application/pdf',
+          size: 8,
+          arrayBuffer: () => Promise.reject(new DOMException('gone', 'NotFoundError')),
+        } as unknown as File,
+      }
+      const content = createFileContent()
+      const { result, save } = await openWithPickedFile({
+        picker: createFilePicker(vanished),
+        content,
+      })
+
+      await act(async () => result.current.submit())
+
+      expect(result.current.fileError).toBe(
+        'That file could not be read. It may have been moved or deleted. Choose it again.',
+      )
+      expect(content.spies.saveBlob).not.toHaveBeenCalled()
+      expect(save).not.toHaveBeenCalled()
+      expect(result.current.isOpen).toBe(true)
+    })
+
+    describe('room in the browser', () => {
+      it('stores nothing and says how much is needed when the file will not fit', async () => {
+        const content = createFileContent()
+        const { result, save } = await openWithPickedFile({
+          content,
+          storage: createStorage({ quota: 1_000, usage: 997 }),
+        })
+
+        await act(async () => result.current.submit())
+
+        expect(result.current.fileError).toBe(
+          'There isn’t enough room in this browser to store this file: 8 B is needed and 3 B is free.',
+        )
+        expect(content.spies.saveBlob).not.toHaveBeenCalled()
+        expect(save).not.toHaveBeenCalled()
+        expect(result.current.isOpen).toBe(true)
+      })
+
+      it('goes ahead when the browser cannot say how much room it has', async () => {
+        const { result, save } = await openWithPickedFile({ storage: createStorage(undefined) })
+
+        await act(async () => result.current.submit())
+
+        expect(save).toHaveBeenCalledOnce()
+      })
+    })
+
+    describe('keeping the copy', () => {
+      it('asks the browser to keep what is stored once the file is added', async () => {
+        const { result, storage } = await openWithPickedFile()
+
+        await act(async () => result.current.submit())
+
+        expect(storage.persist).toHaveBeenCalledOnce()
+      })
+
+      it('adds the file even when the browser will not promise to keep it', async () => {
+        const storage = createStorage()
+        storage.persist.mockResolvedValue(false)
+        const { result, save } = await openWithPickedFile({ storage })
+
+        await act(async () => result.current.submit())
+
+        expect(save).toHaveBeenCalledOnce()
+        expect(result.current.isOpen).toBe(false)
+      })
+
+      it('does not ask when nothing was added', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        const save = createSave().mockRejectedValue(new Error('storage failure'))
+        const { result, storage } = await openWithPickedFile({ save })
+
+        await act(async () => result.current.submit())
+
+        expect(storage.persist).not.toHaveBeenCalled()
+      })
     })
 
     it('stores nothing when the target collection no longer exists', async () => {
@@ -499,7 +618,7 @@ describe('useFileResourceManagement', () => {
 
       await act(async () => result.current.submit())
 
-      expect(content.spies.saveHandle).not.toHaveBeenCalled()
+      expect(content.spies.saveBlob).not.toHaveBeenCalled()
       expect(save).not.toHaveBeenCalled()
       expect(result.current.formError).toBe('The file could not be added. Try again.')
     })

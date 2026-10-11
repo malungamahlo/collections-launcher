@@ -5,8 +5,10 @@ import type {
   CollectionsState,
   ResourceId,
 } from '@app/features/collections/model/collection.types'
+import { describeStorageShortfall } from '@app/features/collections/hooks/file-read-messages'
+import { getStorageShortfall } from '@app/features/collections/model/storage-room'
 import type { FileContentAdapter } from '@app/platform/browser/file-content.adapter'
-import { formatFileSize } from '@app/shared/lib/format-file-size'
+import type { StorageQuotaAdapter } from '@app/platform/browser/storage-quota.adapter'
 import {
   buildImportPreview,
   buildPackageImportPreview,
@@ -49,11 +51,6 @@ export type ImportCollectionState =
     }
   | { readonly status: 'error'; readonly message: string }
 
-/** How much room the browser has for stored files, as `navigator.storage.estimate()` reports it. */
-export interface StorageEstimateLike {
-  readonly quota?: number
-  readonly usage?: number
-}
 
 interface UseImportCollectionOptions {
   readonly state: CollectionsState
@@ -61,11 +58,11 @@ interface UseImportCollectionOptions {
   /** Where an imported package's files are stored, and removed again if the import fails. */
   readonly fileContent: Pick<FileContentAdapter, 'saveBlob' | 'remove'>
   /**
-   * Asks the browser how much room it has. Defaults to
-   * `navigator.storage.estimate()`; a browser that cannot say is not a
-   * reason to refuse an import.
+   * How much room the browser has for those files, and a way to ask it to keep
+   * them. A browser that cannot say how much room it has is not a reason to
+   * refuse an import.
    */
-  readonly estimateStorage?: () => Promise<StorageEstimateLike | undefined>
+  readonly storage: Pick<StorageQuotaAdapter, 'estimate' | 'persist'>
 }
 
 const REJECTION_MESSAGES: Record<ImportRejection, string> = {
@@ -79,9 +76,6 @@ const REJECTION_MESSAGES: Record<ImportRejection, string> = {
     'This file is damaged, or was changed after it was exported, so it can’t be imported. Nothing was added.',
 }
 
-function estimateBrowserStorage(): Promise<StorageEstimateLike | undefined> {
-  return navigator.storage?.estimate?.() ?? Promise.resolve(undefined)
-}
 
 /**
  * Coordinates the source → preview → confirm import workflow: reading a
@@ -100,7 +94,7 @@ export function useImportCollection({
   state,
   save,
   fileContent,
-  estimateStorage = estimateBrowserStorage,
+  storage,
 }: UseImportCollectionOptions) {
   const [importState, setImportState] = useState<ImportCollectionState>({
     status: 'idle',
@@ -176,25 +170,12 @@ export function useImportCollection({
       return undefined
     }
 
-    let estimate: StorageEstimateLike | undefined
+    const shortfall = getStorageShortfall(needed, await storage.estimate())
 
-    try {
-      estimate = await estimateStorage()
-    } catch {
-      return undefined
-    }
-
-    if (estimate?.quota === undefined || estimate.usage === undefined) {
-      return undefined
-    }
-
-    const available = Math.max(0, estimate.quota - estimate.usage)
-
-    return needed > available
-      ? `There isn’t enough room in this browser to store these files: ${formatFileSize(needed)} is needed and ${formatFileSize(available)} is free. Nothing was added.`
+    return shortfall
+      ? `${describeStorageShortfall(shortfall, 'these files')} Nothing was added.`
       : undefined
   }
-
   /** Removes files stored by an import that did not complete. Best effort: a failure here is only logged. */
   async function removeStoredFiles(resourceIds: readonly ResourceId[]): Promise<void> {
     await Promise.all(
@@ -285,6 +266,13 @@ export function useImportCollection({
       }
 
       await save(prepared.state)
+
+      if (prepared.fileContents.length > 0) {
+        // These copies are the only ones this browser has of the files, so
+        // ask it to keep them. Not awaited: the import is done either way.
+        void storage.persist()
+      }
+
       setImportState({
         status: 'done',
         collectionName: preview.target?.name ?? chosenName,

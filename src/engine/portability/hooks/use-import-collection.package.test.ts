@@ -15,14 +15,15 @@ import {
   HANDBOOK_BYTES,
 } from '../test/package.fixtures'
 import { createManifestObject } from '../test/portability.fixtures'
-import { useImportCollection, type StorageEstimateLike } from './use-import-collection'
+import type { StorageEstimate } from '@app/platform/browser/storage-quota.adapter'
+import { useImportCollection } from './use-import-collection'
 
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
 })
 
-const PLENTY: StorageEstimateLike = { quota: 10_000_000_000, usage: 0 }
+const PLENTY: StorageEstimate = { quota: 10_000_000_000, usage: 0 }
 
 /** Renders the hook over an in-memory file store, recording what is written and removed. */
 function renderImport(
@@ -30,7 +31,7 @@ function renderImport(
     state?: CollectionsState
     save?: (state: CollectionsState) => Promise<void>
     saveBlob?: (id: string, blob: Blob) => Promise<void>
-    estimate?: StorageEstimateLike | undefined | (() => Promise<StorageEstimateLike | undefined>)
+    estimate?: StorageEstimate | undefined | (() => Promise<StorageEstimate | undefined>)
   } = {},
 ) {
   const stored = new Map<string, Blob>()
@@ -51,19 +52,23 @@ function renderImport(
     }),
   }
   const estimate = options.estimate
+  const storage = {
+    estimate:
+      typeof estimate === 'function'
+        ? estimate
+        : () => Promise.resolve('estimate' in options ? estimate : PLENTY),
+    persist: vi.fn(() => Promise.resolve(true)),
+  }
   const hook = renderHook(() =>
     useImportCollection({
       state: options.state ?? createTestState(),
       save,
       fileContent,
-      estimateStorage:
-        typeof estimate === 'function'
-          ? estimate
-          : () => Promise.resolve('estimate' in options ? estimate : PLENTY),
+      storage,
     }),
   )
 
-  return { ...hook, save, fileContent, stored }
+  return { ...hook, save, fileContent, stored, storage }
 }
 
 /** A package holding two files, so a failure can strike between them. */
@@ -242,15 +247,6 @@ describe('useImportCollection with a package', () => {
       expect(save).toHaveBeenCalledOnce()
     })
 
-    it('goes ahead when asking fails', async () => {
-      const { result, save } = renderImport({ estimate: () => Promise.reject(new Error('no')) })
-      await act(async () => result.current.handleFileSelected(await createPackageFile()))
-
-      await act(() => result.current.confirmImport())
-
-      expect(save).toHaveBeenCalledOnce()
-    })
-
     it('does not ask at all for an import with no files', async () => {
       const estimate = vi.fn(() => Promise.resolve(PLENTY))
       const { result } = renderImport({ estimate })
@@ -265,6 +261,42 @@ describe('useImportCollection with a package', () => {
       await act(() => result.current.confirmImport())
 
       expect(estimate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('keeping the imported files', () => {
+    it('asks the browser to keep what is stored once files are imported', async () => {
+      const { result, storage } = renderImport()
+      await act(async () => result.current.handleFileSelected(await createPackageFile()))
+
+      await act(() => result.current.confirmImport())
+
+      expect(storage.persist).toHaveBeenCalledOnce()
+    })
+
+    it('does not ask for an import that stored no files', async () => {
+      const { result, storage } = renderImport()
+      const websitesOnly = await createPackageFile({
+        manifest: createManifestObject({
+          collection: { resources: [{ type: 'website', name: 'A', url: 'https://a.example/' }] },
+        }),
+        attachments: {},
+      })
+      await act(async () => result.current.handleFileSelected(websitesOnly))
+
+      await act(() => result.current.confirmImport())
+
+      expect(storage.persist).not.toHaveBeenCalled()
+    })
+
+    it('does not ask when the import failed', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const { result, storage } = renderImport({ save: () => Promise.reject(new Error('down')) })
+      await act(async () => result.current.handleFileSelected(await createPackageFile()))
+
+      await act(() => result.current.confirmImport())
+
+      expect(storage.persist).not.toHaveBeenCalled()
     })
   })
 

@@ -30,6 +30,7 @@ confused with each other.
   `Browser*` implementation (tabs, active tab, file download, bookmarks).
   Application code depends on the interface; adapters and the storage
   repository are constructed once at module level in `entrypoints/*/App.tsx`.
+  `storage-quota.adapter.ts` wraps `navigator.storage` (`estimate`, `persist`).
   `platform/` reaches into a feature in only three places, all for
   collections-model helpers/types: `active-tab.adapter.ts` (the URL helper
   `website-url`) and `file-content.adapter.ts` / `indexeddb-file-content.store.ts`
@@ -85,9 +86,20 @@ confused with each other.
     *Open in Word/Excel/PowerPoint* (`useFileResourceActions.openInApp`), and *Save a
     copy*. Don't add app-level chrome (a name, a save/download control, anything) around
     a file's document.
-- **Copies of a user's files.** A locally added file is stored as a reference (a
-  `FileSystemFileHandle`), never a stored duplicate; sync is planned and piled-up copies
-  are unwanted. The one sanctioned copy is the **temporary one made to open an Office
+- **A collection owns a copy of every file** (decided with the user on 2026-10-11,
+  `plans/v3/05-owned-file-storage-and-editing-decision.md`; this reversed the earlier
+  "reference only" rule). Adding a file reads it once and stores the bytes as a blob in
+  IndexedDB (`saveBlob`), exactly as an imported file is stored; the original is never
+  written to, and later changes to it do not appear. Before storing, room is checked
+  (`model/storage-room.ts`, `platform/browser/storage-quota.adapter.ts`), and afterwards
+  the browser is asked to keep the storage (`persist`). Files added before this are
+  still `handle` entries: nothing writes one any more, but `load` must keep reading
+  them, and it **adopts** them (replaces the reference with a copy) once read;
+  `hooks/use-adopt-referenced-files.ts` does the same when the dashboard opens, for
+  those the browser can read **without prompting**. A stored copy is removed with its
+  resource.
+- **The temporary copy for a desktop application.** The one copy outside the browser is
+  the **temporary one made to open an Office
   file in its own application** (`platform/browser/external-open.adapter.ts`): an
   extension cannot open a file in place, so it is written through `chrome.downloads` into
   a folder of its own inside Downloads, opened with `downloads.open`, and deleted by
@@ -99,9 +111,7 @@ confused with each other.
   the hidden copy visible, and never keep one. Three optional permissions (`downloads`,
   `downloads.open`, `downloads.ui`) are asked for the first time an Office file is opened in its app,
   from the click itself; `downloads.open` also needs a click within ~5 seconds, hence the
-  "ready — Open" fallback. (See `documentation/Logic Doc/v3/11-…`.) The other sanctioned
-  copy is a file that **arrives by import**: it has no place on this computer to point
-  at, so it is stored as a blob in IndexedDB (`saveBlob`), and removed with its resource.
+  "ready — Open" fallback. (See `documentation/Logic Doc/v3/11-…`.)
 - **Export and import carry files** (`engine/portability`; decided with the user in
   `plans/v3/04-attachment-bundle-format-decision.md`). A `.collectionLauncher` file is a
   **zip inside** (the user never unzips it): `manifest.json` (schema version 2, every
@@ -178,8 +188,11 @@ real application.
   running at launch).
 - **Playwright cannot operate the native file dialog** (`showOpenFilePicker`).
   `helpers/file-picker.ts` replaces it with a real Origin-Private-File-System handle for
-  the test document. That exercises real IndexedDB storage of a handle, but **not the
-  native dialog or which file types it lists** — verify that by hand.
+  the test document, which the extension reads and copies exactly as it would a file on
+  disk. That does **not** exercise the native dialog or which file types it lists —
+  verify that by hand. A file "added by an earlier version" is made with
+  `storeAsReference()` (`helpers/storage.ts`), which swaps the stored copy for a handle
+  entry; tests about a missing original or lapsed access apply only to those.
 - **Screenshots for the user to review** go to `playwright-tests\screenshots\<name>\`
   (each folder has an `INDEX.md` with captions), written by `helpers/screenshots.ts`;
   `tests/phase-g-verification.spec.ts` is the model (`phase-h-verification.spec.ts` also

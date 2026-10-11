@@ -72,6 +72,22 @@ function createFakeHandle(options: FakeHandleOptions = {}) {
   }
 }
 
+/**
+ * Puts a reference-style entry straight into an adapter's store. Nothing in
+ * the app writes one any more — a collection owns a copy of each file — but
+ * files added before that are stored this way and must still be read.
+ */
+async function seedReference(
+  adapter: BrowserFileContentAdapter,
+  id: string,
+  handle: FileSystemFileHandle,
+): Promise<void> {
+  await (adapter as unknown as { store: FileContentStore }).store.put(id, {
+    kind: 'handle',
+    handle,
+  })
+}
+
 async function catchError(promise: Promise<unknown>): Promise<unknown> {
   try {
     await promise
@@ -105,22 +121,11 @@ describe('BrowserFileContentAdapter', () => {
     })
   })
 
-  describe('handle backend', () => {
-    it('stores a reference, never a copy of the bytes', async () => {
-      const store = createMemoryStore()
-      const adapter = new BrowserFileContentAdapter(store)
-      const { handle, getFile } = createFakeHandle()
-
-      await adapter.saveHandle('resource-1', handle)
-
-      expect(store.entries.get('resource-1')).toEqual({ kind: 'handle', handle })
-      expect(getFile).not.toHaveBeenCalled()
-    })
-
+  describe('an older file, still stored as a reference', () => {
     it('loads the file through the handle when read access is already granted', async () => {
       const adapter = new BrowserFileContentAdapter(createMemoryStore())
       const { handle, queryPermission, requestPermission } = createFakeHandle()
-      await adapter.saveHandle('resource-1', handle)
+      await seedReference(adapter, 'resource-1', handle)
 
       const loaded = await adapter.load('resource-1')
 
@@ -135,7 +140,7 @@ describe('BrowserFileContentAdapter', () => {
         permission: 'prompt',
         requestResult: 'granted',
       })
-      await adapter.saveHandle('resource-1', handle)
+      await seedReference(adapter, 'resource-1', handle)
 
       const loaded = await adapter.load('resource-1')
 
@@ -149,7 +154,7 @@ describe('BrowserFileContentAdapter', () => {
         permission: 'prompt',
         requestResult: 'denied',
       })
-      await adapter.saveHandle('resource-1', handle)
+      await seedReference(adapter, 'resource-1', handle)
 
       const error = await catchError(adapter.load('resource-1'))
 
@@ -164,7 +169,7 @@ describe('BrowserFileContentAdapter', () => {
         permission: 'prompt',
         requestResult: domError('SecurityError'),
       })
-      await adapter.saveHandle('resource-1', handle)
+      await seedReference(adapter, 'resource-1', handle)
 
       await expect(adapter.load('resource-1')).rejects.toMatchObject({
         code: 'PERMISSION_DENIED',
@@ -176,7 +181,7 @@ describe('BrowserFileContentAdapter', () => {
       const { handle } = createFakeHandle({
         file: () => Promise.reject(domError('NotFoundError')),
       })
-      await adapter.saveHandle('resource-1', handle)
+      await seedReference(adapter, 'resource-1', handle)
 
       await expect(adapter.load('resource-1')).rejects.toMatchObject({
         code: 'NOT_FOUND',
@@ -188,7 +193,7 @@ describe('BrowserFileContentAdapter', () => {
       const { handle } = createFakeHandle({
         file: () => Promise.reject(domError('NotAllowedError')),
       })
-      await adapter.saveHandle('resource-1', handle)
+      await seedReference(adapter, 'resource-1', handle)
 
       await expect(adapter.load('resource-1')).rejects.toMatchObject({
         code: 'PERMISSION_DENIED',
@@ -201,35 +206,143 @@ describe('BrowserFileContentAdapter', () => {
       const { handle } = createFakeHandle({
         file: () => Promise.reject(cause),
       })
-      await adapter.saveHandle('resource-1', handle)
+      await seedReference(adapter, 'resource-1', handle)
 
       const error = await catchError(adapter.load('resource-1'))
 
       expect(error).toMatchObject({ code: 'UNAVAILABLE', cause })
     })
 
-    it('reads the current content on every load, never a cached copy', async () => {
+    it('adopts the file once it has been read: the reference becomes a copy', async () => {
+      const store = createMemoryStore()
+      const adapter = new BrowserFileContentAdapter(store)
+      const { handle } = createFakeHandle()
+      await seedReference(adapter, 'resource-1', handle)
+
+      await adapter.load('resource-1')
+
+      const stored = store.entries.get('resource-1')
+      expect(stored?.kind).toBe('blob')
+      expect(stored?.kind === 'blob' && (await stored.blob.text())).toBe('# Notes')
+      expect(stored?.kind === 'blob' && stored.blob.type).toBe('text/markdown')
+    })
+
+    it('never goes back to the original after that, whatever happens to it', async () => {
       const adapter = new BrowserFileContentAdapter(createMemoryStore())
-      let current = new File(['first'], 'notes.md')
-      const { handle, getFile } = createFakeHandle({ file: () => Promise.resolve(current) })
-      await adapter.saveHandle('resource-1', handle)
+      let current: File | Error = new File(['as it was added'], 'notes.md')
+      const { handle, getFile } = createFakeHandle({
+        file: () => (current instanceof Error ? Promise.reject(current) : Promise.resolve(current)),
+      })
+      await seedReference(adapter, 'resource-1', handle)
+      await adapter.load('resource-1')
 
-      expect(await (await adapter.load('resource-1')).text()).toBe('first')
-
+      // The original is edited, then deleted; the collection's copy is unmoved.
       current = new File(['edited outside the extension'], 'notes.md')
+      expect(await (await adapter.load('resource-1')).text()).toBe('as it was added')
+      current = domError('NotFoundError')
+      expect(await (await adapter.load('resource-1')).text()).toBe('as it was added')
 
-      expect(await (await adapter.load('resource-1')).text()).toBe(
-        'edited outside the extension',
-      )
-      expect(getFile).toHaveBeenCalledTimes(2)
+      expect(getFile).toHaveBeenCalledTimes(1)
+    })
+
+    it('still returns the file when it could be read but not stored', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const store = createMemoryStore()
+      const adapter = new BrowserFileContentAdapter(store)
+      await seedReference(adapter, 'resource-1', createFakeHandle().handle)
+      store.put = () => Promise.reject(domError('QuotaExceededError'))
+
+      const loaded = await adapter.load('resource-1')
+
+      expect(await loaded.text()).toBe('# Notes')
+      expect(store.entries.get('resource-1')?.kind).toBe('handle')
+      expect(consoleError).toHaveBeenCalled()
+      consoleError.mockRestore()
+    })
+
+    it('leaves the reference in place when the file cannot be read', async () => {
+      const store = createMemoryStore()
+      const adapter = new BrowserFileContentAdapter(store)
+      const { handle } = createFakeHandle({
+        file: () => Promise.reject(domError('NotFoundError')),
+      })
+      await seedReference(adapter, 'resource-1', handle)
+
+      await catchError(adapter.load('resource-1'))
+
+      expect(store.entries.get('resource-1')?.kind).toBe('handle')
     })
   })
 
-  describe('both backends behind one interface', () => {
+  describe('adopting without a click', () => {
+    it('copies in a referenced file the browser still has access to', async () => {
+      const store = createMemoryStore()
+      const adapter = new BrowserFileContentAdapter(store)
+      const { handle, requestPermission } = createFakeHandle()
+      await seedReference(adapter, 'resource-1', handle)
+
+      expect(await adapter.adopt('resource-1')).toBe('adopted')
+
+      const stored = store.entries.get('resource-1')
+      expect(stored?.kind === 'blob' && (await stored.blob.text())).toBe('# Notes')
+      expect(requestPermission).not.toHaveBeenCalled()
+    })
+
+    it('never prompts: a file the browser must ask about is left for a click', async () => {
+      const store = createMemoryStore()
+      const adapter = new BrowserFileContentAdapter(store)
+      const { handle, requestPermission, getFile } = createFakeHandle({ permission: 'prompt' })
+      await seedReference(adapter, 'resource-1', handle)
+
+      expect(await adapter.adopt('resource-1')).toBe('needs-access')
+
+      expect(requestPermission).not.toHaveBeenCalled()
+      expect(getFile).not.toHaveBeenCalled()
+      expect(store.entries.get('resource-1')?.kind).toBe('handle')
+    })
+
+    it('has nothing to do for a file that is already a copy', async () => {
+      const store = createMemoryStore()
+      const adapter = new BrowserFileContentAdapter(store)
+      const blob = new Blob(['owned'])
+      await adapter.saveBlob('resource-1', blob)
+
+      expect(await adapter.adopt('resource-1')).toBe('already-owned')
+
+      expect(store.entries.get('resource-1')).toEqual({ kind: 'blob', blob })
+    })
+
+    it.each([
+      ['its original is gone', () => Promise.reject(domError('NotFoundError'))],
+      ['its original cannot be read', () => Promise.reject(new Error('disk on fire'))],
+    ])('reports a file as unavailable, without throwing, when %s', async (_label, file) => {
+      const store = createMemoryStore()
+      const adapter = new BrowserFileContentAdapter(store)
+      await seedReference(adapter, 'resource-1', createFakeHandle({ file }).handle)
+
+      expect(await adapter.adopt('resource-1')).toBe('unavailable')
+      expect(store.entries.get('resource-1')?.kind).toBe('handle')
+    })
+
+    it('reports a resource with nothing stored as unavailable', async () => {
+      expect(await new BrowserFileContentAdapter(createMemoryStore()).adopt('nope')).toBe(
+        'unavailable',
+      )
+    })
+
+    it('does not throw when the store itself fails', async () => {
+      const store = createMemoryStore()
+      store.get = () => Promise.reject(new Error('database closed'))
+
+      expect(await new BrowserFileContentAdapter(store).adopt('resource-1')).toBe('unavailable')
+    })
+  })
+
+  describe('however a file is stored', () => {
     it('returns a Blob from load() whichever form a resource is stored in', async () => {
       const adapter = new BrowserFileContentAdapter(createMemoryStore())
       await adapter.saveBlob('imported', new Blob(['imported bytes']))
-      await adapter.saveHandle('local', createFakeHandle().handle)
+      await seedReference(adapter, 'local', createFakeHandle().handle)
 
       expect(await adapter.load('imported')).toBeInstanceOf(Blob)
       expect(await adapter.load('local')).toBeInstanceOf(Blob)

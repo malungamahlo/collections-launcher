@@ -20,6 +20,7 @@ import { useCollectionReorder } from '@app/features/collections/hooks/use-collec
 import { useCollectionSearch } from '@app/features/collections/hooks/use-collection-search'
 import { useCollectionsState } from '@app/features/collections/hooks/use-collections-state'
 import { useAddResource } from '@app/features/collections/hooks/use-add-resource'
+import { useAdoptReferencedFiles } from '@app/features/collections/hooks/use-adopt-referenced-files'
 import { useFileResourceManagement } from '@app/features/collections/hooks/use-file-resource-management'
 import { useFileResourceActions } from '@app/features/collections/hooks/use-file-resource-actions'
 import { useResourceMove } from '@app/features/collections/hooks/use-resource-move'
@@ -43,6 +44,7 @@ import { BrowserFileContentAdapter } from '@app/platform/browser/file-content.ad
 import { BrowserFileDownloadAdapter } from '@app/platform/browser/file-download.adapter'
 import { BrowserFilePickerAdapter } from '@app/platform/browser/file-picker.adapter'
 import { IndexedDbFileContentStore } from '@app/platform/browser/indexeddb-file-content.store'
+import { BrowserStorageQuotaAdapter } from '@app/platform/browser/storage-quota.adapter'
 import { BrowserTabsAdapter } from '@app/platform/browser/tabs.adapter'
 
 const collectionsRepository = new ChromeLocalCollectionsRepository()
@@ -53,11 +55,13 @@ const filePickerAdapter = new BrowserFilePickerAdapter()
 // Hands a file to the operating system's own application (Word, …) through a
 // temporary copy the user is never shown.
 const externalOpenAdapter = new BrowserExternalOpenAdapter()
-// File bytes (or references to them) live in IndexedDB, not in the collections
-// state in `chrome.storage.local`.
+// A collection owns a copy of each of its files. The copies live in IndexedDB,
+// not in the collections state in `chrome.storage.local`.
 const fileContentAdapter = new BrowserFileContentAdapter(
   new IndexedDbFileContentStore(),
 )
+// How much room the browser has for those copies, and asking it to keep them.
+const storageQuotaAdapter = new BrowserStorageQuotaAdapter()
 
 function App() {
   const dashboardFallbackFocusRef = useRef<HTMLButtonElement>(null)
@@ -78,6 +82,14 @@ function App() {
     state: storedCollections.state,
     save: storedCollections.save,
     filePicker: filePickerAdapter,
+    fileContent: fileContentAdapter,
+    storage: storageQuotaAdapter,
+  })
+  // Files added before collections owned their files are still references to
+  // the originals; copy in whichever the browser can still read, quietly.
+  useAdoptReferencedFiles({
+    state: storedCollections.state,
+    isReady: storedCollections.status === 'ready' && !isDevelopmentPreview,
     fileContent: fileContentAdapter,
   })
   // One "Add resource" entry point covers both websites and files.
@@ -117,6 +129,7 @@ function App() {
     state: storedCollections.state,
     save: storedCollections.save,
     fileContent: fileContentAdapter,
+    storage: storageQuotaAdapter,
   })
   const bookmarkImport = useBookmarkImport({
     adapter: bookmarksAdapter,

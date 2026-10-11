@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FileContentAdapter } from '@app/platform/browser/file-content.adapter'
+import type { StorageQuotaAdapter } from '@app/platform/browser/storage-quota.adapter'
 import {
   FilePickerError,
   type FilePickerAdapter,
@@ -15,6 +16,7 @@ import type {
   ResourceId,
 } from '../model/collection.types'
 import { getFileSizeValidationError } from '../model/file-resource.validation'
+import { getStorageShortfall } from '../model/storage-room'
 import {
   getFilePickerTypes,
   getResourceKind,
@@ -24,6 +26,7 @@ import {
   getWebsiteNameValidationError,
   WEBSITE_NAME_MAX_LENGTH,
 } from '../model/website-resource.validation'
+import { describeStorageShortfall } from './file-read-messages'
 import {
   createEmptyFileResourceFormValues,
   type ChosenFileSummary,
@@ -32,8 +35,12 @@ import {
 
 /** What is known about the file the user picked, kept until they confirm. */
 export interface PickedFileDetails {
-  /** A live reference to the user's file; this, not a copy, is what gets stored. */
-  readonly handle: FileSystemFileHandle
+  /**
+   * The picked file. It is a view of the file on disk until the user
+   * confirms; a copy of its bytes is what gets stored, and after that the
+   * original is never read again.
+   */
+  readonly file: Blob
   readonly fileName: string
   readonly mimeType: string
   readonly sizeBytes: number
@@ -43,7 +50,9 @@ interface UseFileResourceManagementOptions {
   readonly state: CollectionsState
   readonly save: (state: CollectionsState) => Promise<void>
   readonly filePicker: FilePickerAdapter
-  readonly fileContent: FileContentAdapter
+  readonly fileContent: Pick<FileContentAdapter, 'saveBlob' | 'remove'>
+  /** How much room the browser has for the copy, and a way to ask it to keep it. */
+  readonly storage: Pick<StorageQuotaAdapter, 'estimate' | 'persist'>
 }
 
 /**
@@ -59,16 +68,20 @@ export function suggestResourceName(fileName: string): string {
 
 /**
  * Coordinates adding a file to a collection: choosing it with the native
- * picker, naming it, and persisting both the resource and a reference to the
- * file. Nothing is left half-done — the resource is only saved after the
- * file reference is stored, and if saving the resource then fails the
- * reference is removed again.
+ * picker, naming it, and persisting both the resource and **a copy of the
+ * file**. The collection owns that copy, the way a file uploaded to a chat
+ * belongs to the chat: the user's original is never read again and never
+ * changed, so moving or deleting it later affects nothing here.
+ *
+ * Nothing is left half-done — the resource is only saved after the copy is
+ * stored, and if saving the resource then fails the copy is removed again.
  */
 export function useFileResourceManagement({
   state,
   save,
   filePicker,
   fileContent,
+  storage,
 }: UseFileResourceManagementOptions) {
   const [isOpen, setIsOpen] = useState(false)
   const [formValues, setFormValues] = useState<FileResourceFormValues>(
@@ -144,7 +157,7 @@ export function useFileResourceManagement({
       const suggestion = suggestResourceName(picked.file.name)
 
       setPickedFile({
-        handle: picked.handle,
+        file: picked.file,
         fileName: picked.file.name,
         mimeType: inferMimeType(picked.file.name, picked.file.type),
         sizeBytes: picked.file.size,
@@ -168,16 +181,31 @@ export function useFileResourceManagement({
     }
   }
 
-  /** Forgets a stored file reference after a failed save; a failure here is only logged. */
+  /** Removes a stored copy after a failed save; a failure here is only logged. */
   async function discardStoredContent(id: ResourceId): Promise<void> {
     try {
       await fileContent.remove(id)
     } catch (error) {
-      console.error('Could not remove a file reference after a failed save', error)
+      console.error('Could not remove a stored file after a failed save', error)
     }
   }
 
-  /** Validates, then stores the file reference and saves the new resource. */
+  /**
+   * Reads the picked file into memory. Between choosing it and confirming,
+   * the file may have been moved, deleted or changed; a file that can no
+   * longer be read is reported rather than stored half-way.
+   */
+  async function readPickedFile(picked: PickedFileDetails): Promise<Blob | undefined> {
+    try {
+      return new Blob([await picked.file.arrayBuffer()], { type: picked.mimeType })
+    } catch (error) {
+      console.error('Could not read the picked file', error)
+
+      return undefined
+    }
+  }
+
+  /** Validates, then stores a copy of the file and saves the new resource. */
   async function submit(): Promise<void> {
     if (!isOpen || isSaving) {
       return
@@ -200,13 +228,35 @@ export function useFileResourceManagement({
     let storedResourceId: ResourceId | undefined
 
     try {
+      const content = await readPickedFile(pickedFile)
+
+      if (!content) {
+        setFileError('That file could not be read. It may have been moved or deleted. Choose it again.')
+        return
+      }
+
+      // The file as it is now, which may differ from when it was chosen.
+      const currentSizeError = getFileSizeValidationError(content.size)
+
+      if (currentSizeError) {
+        setFileError(currentSizeError)
+        return
+      }
+
+      const shortfall = getStorageShortfall(content.size, await storage.estimate())
+
+      if (shortfall) {
+        setFileError(describeStorageShortfall(shortfall, 'this file'))
+        return
+      }
+
       const resource = createFileResource({
         name: formValues.name,
         mimeType: pickedFile.mimeType,
-        sizeBytes: pickedFile.sizeBytes,
+        sizeBytes: content.size,
       })
       // Checked before anything is stored, so a rejected name or a missing
-      // collection never leaves a file reference behind.
+      // collection never leaves a stored file behind.
       const nextState = addResourceToCollection(
         state,
         formValues.collectionId,
@@ -214,10 +264,14 @@ export function useFileResourceManagement({
         resource.updatedAt,
       )
 
-      await fileContent.saveHandle(resource.id, pickedFile.handle)
+      // Recorded first: a write that fails half-way may still have left something.
       storedResourceId = resource.id
+      await fileContent.saveBlob(resource.id, content)
       await save(nextState)
       setIsOpen(false)
+      // The collection's copy is the only one it has, so ask the browser to
+      // keep it. Not awaited: the file is added whether or not it agrees.
+      void storage.persist()
     } catch (error) {
       if (storedResourceId) {
         await discardStoredContent(storedResourceId)

@@ -69,7 +69,7 @@ describe('FileResourceForm', () => {
       expect(screen.getByText('Employee handbook.pdf')).not.toBeNull()
       expect(screen.getByText('PDF document · 2 KB')).not.toBeNull()
       expect(getButton('Choose a different file')).not.toBeNull()
-      expect(screen.getByText(/saves a link to it/)).not.toBeNull()
+      expect(screen.getByText(/A copy is kept in this browser/)).not.toBeNull()
     })
 
     it('shows a file error as an alert in place of the hint', () => {
