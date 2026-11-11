@@ -381,7 +381,7 @@ describe('opening a file in its own application', () => {
     await act(() => result.current.openInApp(resource))
 
     expect(result.current.notice?.message).toBe(
-      `Opened "${resource.name}". It's a temporary copy — to keep any changes, use Save As in ${app}.`,
+      `Opened "${resource.name}". It's a temporary copy — to keep any changes, use Save As in ${app}, then add the saved file to your collection.`,
     )
     // The app's own Save a copy saves the original, not the edited copy, so it is not what to point at.
     expect(result.current.notice?.message).not.toContain('Save a copy')
